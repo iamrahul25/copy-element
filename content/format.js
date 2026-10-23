@@ -130,15 +130,26 @@
 
     function renderBlock(el, lvl, ctx, open, close) {
       const lines = [open];
-      for (const k of el.childNodes) {
-        if (k.nodeType === Node.ELEMENT_NODE) {
-          const sub = render(k, lvl + 1, ctx);
-          lines.push(pad(lvl + 1) + sub[0], ...sub.slice(1));
-        } else if (k.nodeType === Node.TEXT_NODE && !WS_ONLY.test(k.data)) {
-          const words = k.data.trim().split(WS_SPLIT).map((w) => [escapeText(w)]);
+      // Adjacent text nodes (e.g. React's "v" + "4.3" once comments are stripped) form one run;
+      // a line break between them would render as a space.
+      let text = '';
+      const flushText = () => {
+        if (!WS_ONLY.test(text)) {
+          const words = text.trim().split(WS_SPLIT).map((w) => [escapeText(w)]);
           lines.push(...layout(words, [], pad(lvl + 1), lvl + 1));
         }
+        text = '';
+      };
+      for (const k of el.childNodes) {
+        if (k.nodeType === Node.TEXT_NODE) {
+          text += k.data;
+        } else if (k.nodeType === Node.ELEMENT_NODE) {
+          flushText();
+          const sub = render(k, lvl + 1, ctx);
+          lines.push(pad(lvl + 1) + sub[0], ...sub.slice(1));
+        }
       }
+      flushText();
       if (lines.length === 1) return [open + close];
       if (lines.length === 2) {
         const one = open + lines[1].trim() + close;

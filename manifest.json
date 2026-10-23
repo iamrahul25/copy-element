@@ -1,7 +1,7 @@
 {
   "manifest_version": 3,
   "name": "Copy Thing",
-  "version": "1.0.0",
+  "version": "2.0.0",
   "description": "Copy any element with its HTML and CSS as a standalone page. Live preview and a local component library.",
   "permissions": ["activeTab", "scripting", "storage", "unlimitedStorage", "clipboardWrite", "contextMenus"],
   "host_permissions": ["<all_urls>"],

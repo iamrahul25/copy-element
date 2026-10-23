@@ -24,6 +24,7 @@ Chrome remembers it for this profile; later runs open straight to the browser.
 
 - Click the Copy Thing icon or press `Alt+Shift+C`, then click an element (`↑`/`↓` select parent/child, `Esc` cancels).
 - In the panel: toggle options, then **Copy HTML**, **Download .html**, or **Save to library**.
+- **Minimal CSS** (on by default) writes only the styles that change how the element looks, as shorthands (`padding: 8px 16px`, `border: 1px solid …`), and keeps a `width`/`height` only where the layout needs it. Turn it off for the exhaustive v1 output.
 - Open the library from the panel's **Library** button or by right-clicking the toolbar icon.
 
 After changing the code, click the reload arrow on the Copy Thing card in `chrome://extensions`.

@@ -10,6 +10,11 @@
   const LARGE_BYTES = 5 * 1024 * 1024;
 
   const OPTIONS = [
+    [
+      'minimal',
+      'Minimal CSS',
+      'Only the styles that change how it looks, as shorthands. Sizes are kept only where the layout needs them',
+    ],
     ['pseudo', 'Pseudo-elements', '::before / ::after content'],
     ['fonts', 'Web fonts', 'Include matching @font-face rules'],
     ['svg', 'SVG internals', 'Style shapes inside inline SVGs'],
@@ -241,13 +246,13 @@
       const seq = ++state.seq;
       setStatus('Building…');
       try {
-        const { html, bytes } = await CT.serializer.build(snap, state.opts);
+        const { html, bytes, classCount } = await CT.serializer.build(snap, state.opts);
         if (seq !== state.seq || !ui) return;
         state.html = html;
         state.bytes = bytes;
         code.textContent = html;
         postPreview();
-        const notes = [`${snap.meta.nodeCount} elements`, formatBytes(bytes)];
+        const notes = [`${snap.meta.nodeCount} elements`, `${classCount} classes`, formatBytes(bytes)];
         let kind = '';
         if (snap.meta.nodeCount > LARGE_NODES) {
           notes.push('large element');

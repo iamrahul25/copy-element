@@ -8,6 +8,7 @@
   const XLINK_NS = 'http://www.w3.org/1999/xlink';
 
   const DEFAULT_OPTIONS = {
+    minimal: true,
     pseudo: true,
     fonts: true,
     svg: true,
@@ -56,6 +57,7 @@
     'outline-color',
     'text-decoration-color',
     'column-rule-color',
+    'row-rule-color',
     'caret-color',
     '-webkit-text-fill-color',
     '-webkit-text-stroke-color',
@@ -114,6 +116,8 @@
   const ROOT_SKIP_RE =
     /^(order|flex-grow|flex-shrink|flex-basis|align-self|justify-self|place-self|grid-row|grid-column|grid-area)/;
   const INSETS = new Set(['top', 'right', 'bottom', 'left']);
+  const EM_DEFAULT_RE = /^(margin|padding)-(top|right|bottom|left)$/;
+  const FLEX_GRID_PARENT = /(^|[\s-])(flex|grid)\b/;
   const RULE_STYLE_RE = /^(border-(?:top|right|bottom|left)|outline|column-rule|row-rule)-style$/;
   const EMPTY_SET = new Set();
 
@@ -148,6 +152,17 @@
   ];
   const SVG_URL_ATTRS = ['fill', 'stroke', 'clip-path', 'mask', 'filter', 'marker-start', 'marker-mid', 'marker-end'];
   const TABLE_PARTS = new Set(['td', 'th', 'tr', 'thead', 'tbody', 'tfoot', 'caption', 'colgroup']);
+
+  const SIDES = ['top', 'right', 'bottom', 'left'];
+  const CORNERS = ['top-left', 'top-right', 'bottom-right', 'bottom-left'];
+  // Behaviour-only properties: they don't change how the component looks at rest.
+  const MIN_SKIP_RE =
+    /^(transition|touch-action$|(-webkit-)?user-select$|-webkit-user-drag$|-webkit-tap-highlight-color$|(-webkit-)?print-color-adjust$|scroll-behavior$|scroll-snap|overscroll-behavior)/;
+  // Replaced (or emptied) elements have no content to size them, so their sizes always stay.
+  const FIXED_SIZE_TAGS = new Set(['img', 'video', 'canvas', 'audio', 'input', 'select', 'textarea', 'iframe', 'frame', 'object', 'embed']);
+  const SIZE_RE = /^(width|height|(min|max)-(width|height)|flex|flex-basis|aspect-ratio)$/;
+  const SIZE_TOLERANCE = 0.5;
+  const PIN_ROUNDS = 12;
 
   const STATE_SRC = '(?<!\\\\):(?:hover|focus-visible|focus-within|focus|active)(?![\\w-])';
   const STATE_TEST = new RegExp(STATE_SRC);
@@ -333,9 +348,9 @@
     return out;
   }
 
-  function createDefaults() {
+  function hiddenFrame(name, width, height) {
     const frame = document.createElement('iframe');
-    frame.setAttribute('data-copything', 'defaults');
+    frame.setAttribute('data-copything', name);
     frame.setAttribute('aria-hidden', 'true');
     frame.setAttribute('tabindex', '-1');
     frame.style.cssText = [
@@ -343,8 +358,8 @@
       'position:fixed!important',
       'left:-20000px!important',
       'top:0!important',
-      'width:1200px!important',
-      'height:800px!important',
+      `width:${width}px!important`,
+      `height:${height}px!important`,
       'border:0!important',
       'visibility:hidden!important',
       'pointer-events:none!important',
@@ -359,7 +374,13 @@
     } catch {
       // Trusted Types may block document.write; the initial about:blank document still works.
     }
-    const body = doc.body || doc.documentElement.appendChild(doc.createElement('body'));
+    if (!doc.body) doc.documentElement.appendChild(doc.createElement('body'));
+    return { frame, doc, win };
+  }
+
+  function createDefaults() {
+    const { frame, doc, win } = hiddenFrame('defaults', 1200, 800);
+    const body = doc.body;
 
     const plainSvg = doc.createElementNS(SVG_NS, 'svg');
     body.appendChild(plainSvg);
@@ -435,6 +456,7 @@
       get('scale') !== 'none' ||
       get('translate') !== 'none';
     const hasPerspective = get('perspective') !== 'none';
+    const fontSize = get('font-size');
 
     const decls = [];
     const inh = Object.create(null);
@@ -453,7 +475,9 @@
       if (p === 'perspective-origin' && !hasPerspective) continue;
 
       const ref = inherited && !isRoot && !def.ua.has(p) ? parentInh[p] : def.plain[p];
-      if (v === ref) continue;
+      // UA margins such as `p { margin: 1em 0 }` scale with font-size, so an equal value only
+      // matches the default when the font-size matches too.
+      if (v === ref && !(EM_DEFAULT_RE.test(p) && ref !== '0px' && fontSize !== def.plain['font-size'])) continue;
       decls.push([p, v]);
     }
     addRuleWidths(decls, get);
@@ -508,7 +532,186 @@
     const content = pcs.getPropertyValue('content');
     if (!content || content === 'none' || content === 'normal') return null;
     if (pcs.getPropertyValue('display') === 'none') return null;
-    return computeDecls(pcs, { plain: spanDef.plain, ua: EMPTY_SET }, elInh, null, false).decls;
+    const { decls } = computeDecls(pcs, { plain: spanDef.plain, ua: EMPTY_SET }, elInh, null, false);
+    return { decls, min: minimize(decls, (p) => pcs.getPropertyValue(p), spanDef.plain) };
+  }
+
+  /* ------------------------------------------------------------------ */
+  /* Minimal mode: only what changes the look, written as shorthands     */
+  /* ------------------------------------------------------------------ */
+
+  const zero = (v) => (v === '0px' ? '0' : v);
+
+  function box4(t, r, b, l) {
+    [t, r, b, l] = [t, r, b, l].map(zero);
+    if (l !== r) return `${t} ${r} ${b} ${l}`;
+    if (t !== b) return `${t} ${r} ${b}`;
+    return t === r ? t : `${t} ${r}`;
+  }
+
+  function groupOf(p) {
+    const box = p.match(/^(margin|padding)-(top|right|bottom|left)$/);
+    if (box) return box[1];
+    if (/^border-(top|right|bottom|left)-(width|style|color)$/.test(p)) return 'border';
+    if (/^border-(top|bottom)-(left|right)-radius$/.test(p)) return 'radius';
+    if (INSETS.has(p)) return 'inset';
+    if (p === 'row-gap' || p === 'column-gap') return 'gap';
+    if (p === 'overflow-x' || p === 'overflow-y') return 'overflow';
+    if (/^flex-(grow|shrink|basis)$/.test(p)) return 'flex';
+    if (/^(text-decoration(-(line|style|color|thickness))?|-webkit-text-decorations-in-effect)$/.test(p)) {
+      return 'decoration';
+    }
+    if (/^outline-(color|style|width|offset)$/.test(p)) return 'outline';
+    return null;
+  }
+
+  // Fully rounded corners compute to values like 1e+07px.
+  function clampRadius(v) {
+    return v.replace(/[\d.]+(e\+?\d+)?px/g, (m) => (parseFloat(m) > 9999 ? '9999px' : m));
+  }
+
+  // A border with no width draws nothing whatever its style, e.g. Tailwind's `* { border: 0 solid }`.
+  function borderSide(side, val) {
+    const style = val(`border-${side}-style`);
+    if (style === 'hidden') return 'hidden';
+    const width = val(`border-${side}-width`);
+    if (style === 'none' || !parseFloat(width)) return 'none';
+    const color = val(`border-${side}-color`);
+    return [width, style, color === 'currentcolor' ? '' : color].filter(Boolean).join(' ');
+  }
+
+  // Drops shadow layers that draw nothing, e.g. Tailwind's `0 0 0 0` ring placeholders.
+  function trimShadow(value) {
+    const layers = splitTopLevel(value, ',')
+      .map((s) => s.trim())
+      .filter((layer) => {
+        const color = layer.match(/[a-z-]+\([^()]*\)|transparent/)?.[0];
+        if (color && isTransparent(color)) return false;
+        const lengths = layer.replace(color || '', '').replace(/\binset\b/, '').trim().split(/\s+/);
+        return !lengths.every((t) => parseFloat(t) === 0);
+      });
+    return layers.join(', ') || 'none';
+  }
+
+  function repeatTracks(value) {
+    const tracks = value.split(' ');
+    const same = tracks.length > 1 && /^[\d.]+px$/.test(tracks[0]) && tracks.every((t) => t === tracks[0]);
+    return same ? `repeat(${tracks.length}, ${tracks[0]})` : value;
+  }
+
+  function decoration(val) {
+    const line = val('text-decoration-line');
+    if (line === 'none') return 'none';
+    const parts = [line];
+    const style = val('text-decoration-style');
+    const color = val('text-decoration-color');
+    const thickness = val('text-decoration-thickness');
+    if (style !== 'solid') parts.push(style);
+    if (color !== 'currentcolor') parts.push(color);
+    if (thickness !== 'auto') parts.push(thickness);
+    return parts.join(' ');
+  }
+
+  /**
+   * Shrinks `decls` (already diffed against the defaults) to the declarations that change how the
+   * element looks, merging longhands into shorthands. `get` reads the element's computed values,
+   * `plain` the tag's default ones.
+   */
+  function minimize(decls, get, plain) {
+    const set = new Map(decls);
+    const color = get('color');
+    const val = (p) => {
+      if (set.has(p)) return set.get(p);
+      const v = get(p);
+      return CURRENTCOLOR.has(p) && v === color ? 'currentcolor' : v;
+    };
+    const dflt = (p) => plain[p] ?? '';
+    const present = (props) => props.filter((p) => set.has(p));
+    const longhands = (props) => present(props).map((p) => [p, set.get(p)]);
+    const four = (name, props) => (present(props).length < 2 ? longhands(props) : [[name, box4(...props.map(val))]]);
+    const position = get('position');
+    const flat =
+      /^(none|matrix\(1, 0, 0, 1, 0, 0\))$/.test(get('transform')) &&
+      ['rotate', 'scale', 'translate'].every((p) => get(p) === 'none');
+
+    const groups = {
+      margin: () => four('margin', SIDES.map((s) => `margin-${s}`)),
+      padding: () => four('padding', SIDES.map((s) => `padding-${s}`)),
+      border: () => {
+        const mine = SIDES.map((s) => borderSide(s, val));
+        const base = SIDES.map((s) => borderSide(s, dflt));
+        if (mine.every((v, i) => v === base[i])) return [];
+        if (mine.every((v) => v === mine[0])) return [['border', mine[0]]];
+        return SIDES.flatMap((s, i) => (mine[i] === base[i] ? [] : [[`border-${s}`, mine[i]]]));
+      },
+      radius: () => {
+        const props = CORNERS.map((c) => `border-${c}-radius`);
+        const vals = props.map((p) => clampRadius(val(p)));
+        if (vals.some((v) => v.includes(' '))) return longhands(props).map(([p, v]) => [p, clampRadius(v)]);
+        return [['border-radius', box4(...vals)]];
+      },
+      inset: () => {
+        // Relative offsets resolve to opposite pairs; top and the start side win.
+        if (position === 'relative') {
+          const start = get('direction') === 'rtl' ? 'right' : 'left';
+          return ['top', start].flatMap((p) => (/^(0px|auto)$/.test(val(p)) ? [] : [[p, val(p)]]));
+        }
+        if (position === 'absolute' || position === 'fixed') return four('inset', SIDES);
+        return longhands(SIDES);
+      },
+      gap: () => {
+        const [row, col] = [val('row-gap'), val('column-gap')].map(zero);
+        return [['gap', row === col ? row : `${row} ${col}`]];
+      },
+      overflow: () => {
+        const [x, y] = [val('overflow-x'), val('overflow-y')];
+        return [['overflow', x === y ? x : `${x} ${y}`]];
+      },
+      flex: () => {
+        const props = ['flex-grow', 'flex-shrink', 'flex-basis'];
+        if (present(props).length < 2) return longhands(props);
+        return [['flex', props.map((p) => zero(val(p))).join(' ')]];
+      },
+      decoration: () => {
+        const v = decoration(val);
+        return v === decoration(dflt) ? [] : [['text-decoration', v]];
+      },
+      outline: () => {
+        const style = val('outline-style');
+        if (style === 'none') return dflt('outline-style') === 'none' ? [] : [['outline', 'none']];
+        const c = val('outline-color');
+        const out = [['outline', [val('outline-width'), style, c === 'currentcolor' ? '' : c].filter(Boolean).join(' ')]];
+        if (set.has('outline-offset')) out.push(['outline-offset', set.get('outline-offset')]);
+        return out;
+      },
+    };
+
+    const out = [];
+    const done = new Set();
+    for (const [p, raw] of decls) {
+      const g = groupOf(p);
+      if (g) {
+        if (!done.has(g)) {
+          done.add(g);
+          out.push(...groups[g]());
+        }
+        continue;
+      }
+      if (MIN_SKIP_RE.test(p)) continue;
+      if ((p === 'min-width' || p === 'min-height') && raw === 'auto') continue;
+      if ((p === 'transform' || p === 'transform-origin') && flat) continue;
+      const rule = p.match(/^(column|row)-rule-(color|width)$/);
+      if (rule && /^(none|hidden|)$/.test(val(`${rule[1]}-rule-style`))) continue;
+      let v = raw;
+      if (p === 'box-shadow') {
+        v = trimShadow(v);
+        if (v === dflt(p)) continue;
+      } else if (p === 'grid-template-columns' || p === 'grid-template-rows') {
+        v = repeatTracks(v);
+      }
+      out.push([p, v]);
+    }
+    return out.map(([p, v]) => [p, v.replace(/rgba\(0, 0, 0, 0\)/g, 'transparent')]);
   }
 
   /* ------------------------------------------------------------------ */
@@ -572,7 +775,7 @@
     }
   }
 
-  function walk(ctx, orig, cl, parentInh, isRoot, parentOneLine = false) {
+  function walk(ctx, orig, cl, parentInh, isRoot, parentOneLine = false, parentDisplay = '') {
     const tag = orig.localName;
     const ns = orig.namespaceURI || HTML_NS;
     if (!isRoot && shouldDrop(orig, tag)) {
@@ -610,7 +813,15 @@
 
     const cs = getComputedStyle(orig);
     const def = ctx.defaults.get(outTag, outNs, outTag === tag ? extraFor(orig, tag) : '');
-    const { decls, inh } = computeDecls(cs, def, parentInh, isRoot ? rootOverrides(cs) : null, isRoot);
+    const overrides = isRoot ? rootOverrides(cs) : null;
+    const get = (p) => (overrides && p in overrides ? overrides[p] : cs.getPropertyValue(p));
+    const { decls, inh } = computeDecls(cs, def, parentInh, overrides, isRoot);
+    // On flex and grid items min-width / min-height default to auto, not the 0 a plain div has.
+    if (!isRoot && FLEX_GRID_PARENT.test(parentDisplay)) {
+      for (const p of ['min-width', 'min-height']) {
+        if (get(p) === '0px' && !decls.some(([q]) => q === p)) decls.push([p, '0px']);
+      }
+    }
     fixLocalUrls(ctx, decls);
     for (const f of splitTopLevel(cs.getPropertyValue('font-family'), ',')) ctx.families.add(cleanFamily(f));
 
@@ -627,20 +838,28 @@
       placeholder: null,
       origClass: (orig.getAttribute('class') || '').trim(),
       stateClass: null,
+      // Minimal mode: { decls, before, after, loose }, where `loose` lists the width / height
+      // declarations that may be dropped if the element sizes itself the same way without them.
+      min: null,
+      rect: null,
     };
 
     const keepData = new Set();
+    const minPseudo = { before: null, after: null };
     if (!inSvg) {
       const spanDef = ctx.defaults.get('span');
       for (const which of ['::before', '::after']) {
         const pd = pseudoDecls(orig, which, inh, spanDef);
         if (!pd) continue;
-        fixLocalUrls(ctx, pd);
-        for (const [p, v] of pd) {
+        fixLocalUrls(ctx, pd.decls);
+        fixLocalUrls(ctx, pd.min);
+        for (const [p, v] of pd.decls) {
           if (p === 'content') for (const m of v.matchAll(/attr\(\s*([\w-]+)/g)) keepData.add(m[1].toLowerCase());
           if (p === 'font-family') for (const f of splitTopLevel(v, ',')) ctx.families.add(cleanFamily(f));
         }
-        info[which === '::before' ? 'before' : 'after'] = pd;
+        const key = which === '::before' ? 'before' : 'after';
+        info[key] = pd.decls;
+        minPseudo[key] = pd.min;
       }
       if ((tag === 'input' || tag === 'textarea') && orig.hasAttribute('placeholder')) {
         try {
@@ -653,6 +872,16 @@
     const oneLine = !inSvg && (parentOneLine || isSingleLine(orig));
     if (oneLine && cs.getPropertyValue('text-wrap-mode') === 'wrap') keepOnOneLine(decls, inh, parentInh);
 
+    const minDecls = minimize(decls, get, def.plain);
+    // The root keeps its width: in the page it came from its container, in the file it has none.
+    const loose =
+      FIXED_SIZE_TAGS.has(tag) || info.inSvg
+        ? []
+        : minDecls.map(([p]) => p).filter((p) => p === 'height' || (p === 'width' && !isRoot));
+    info.min = { decls: minDecls, ...minPseudo, loose };
+    const rect = orig.getBoundingClientRect();
+    info.rect = [rect.width, rect.height];
+
     cleanAttributes(ctx, cl, inSvg, keepData);
     applyLiveState(orig, cl, tag);
 
@@ -664,7 +893,7 @@
     const origKids = Array.from(orig.children);
     const cloneKids = Array.from(cl.children);
     for (let i = 0; i < origKids.length; i++) {
-      if (cloneKids[i]) walk(ctx, origKids[i], cloneKids[i], inh, false, oneLine);
+      if (cloneKids[i]) walk(ctx, origKids[i], cloneKids[i], inh, false, oneLine, info.display);
     }
   }
 
@@ -1236,27 +1465,40 @@
     return table;
   }
 
-  async function build(snap, options) {
-    const opts = { ...DEFAULT_OPTIONS, ...options };
-    const fetchFn = CT.fetchResource || defaultFetch;
-    const holder = document.createElement('div');
-    holder.appendChild(snap.root.cloneNode(true));
+  /**
+   * Picks the declarations for one element. In minimal mode `pins` (a Map of index -> Set of
+   * 'width' / 'height') says which loose sizes to keep; null keeps them all.
+   */
+  function partsOf(info, idx, opts, pins, measuring) {
+    const src = opts.minimal ? info.min : info;
+    let decls = !opts.svg && info.inSvg ? [] : src.decls;
+    if (opts.minimal) {
+      if (pins) {
+        const keep = pins.get(idx);
+        decls = decls.filter(([p]) => !info.min.loose.includes(p) || keep?.has(p));
+      }
+      // Sizes pinned while measuring are set inline later and still rely on box-sizing.
+      if (!measuring && !decls.some(([p]) => SIZE_RE.test(p))) decls = decls.filter(([p]) => p !== 'box-sizing');
+    }
+    const parts = [];
+    if (decls.length) parts.push(['', decls]);
+    if (opts.pseudo && src.before) parts.push(['::before', src.before]);
+    if (opts.pseudo && src.after) parts.push(['::after', src.after]);
+    if (info.placeholder) parts.push(['::placeholder', info.placeholder]);
+    return parts;
+  }
 
-    const stateBlocks = opts.states ? await getStateRules(snap, fetchFn) : [];
-
+  // Replaces the `data-ct` markers in `holder` with generated classes and returns their CSS blocks.
+  function applyStyles(snap, holder, opts, pins, measuring) {
     const classByKey = new Map();
     const blocks = [];
     const infoByNode = new Map();
     for (const node of holder.querySelectorAll('[data-ct]')) {
-      const info = snap.infos[+node.getAttribute('data-ct')];
-      node.removeAttribute('data-ct');
+      const idx = +node.getAttribute('data-ct');
+      const info = snap.infos[idx];
+      if (!measuring) node.removeAttribute('data-ct');
       infoByNode.set(node, info);
-      const parts = [];
-      const decls = !opts.svg && info.inSvg ? [] : info.decls;
-      if (decls.length) parts.push(['', decls]);
-      if (opts.pseudo && info.before) parts.push(['::before', info.before]);
-      if (opts.pseudo && info.after) parts.push(['::after', info.after]);
-      if (info.placeholder) parts.push(['::placeholder', info.placeholder]);
+      const parts = partsOf(info, idx, opts, pins, measuring);
 
       const classes = [];
       if (opts.keepClasses && info.origClass) classes.push(info.origClass);
@@ -1273,11 +1515,133 @@
       if (opts.states && info.stateClass) classes.push(info.stateClass);
       if (classes.length) node.setAttribute('class', classes.join(' '));
     }
+    return { blocks, infoByNode, classCount: classByKey.size };
+  }
+
+  /* ------------------------------------------------------------------ */
+  /* Minimal mode: keep a width / height only where the layout needs it  */
+  /* ------------------------------------------------------------------ */
+
+  function sizePins(snap, opts, fonts) {
+    const cache = (snap.cache.pins = snap.cache.pins || new Map());
+    const key = `${opts.pseudo}|${opts.svg}|${opts.fonts}`;
+    if (!cache.has(key)) {
+      cache.set(
+        key,
+        measurePins(snap, opts, fonts).catch((err) => {
+          console.warn('[Copy Thing] size check failed, keeping all sizes', err);
+          return null;
+        })
+      );
+    }
+    return cache.get(key);
+  }
+
+  function ancestorsOf(el) {
+    const out = [];
+    for (let n = el.parentElement; n && n.localName !== 'body'; n = n.parentElement) out.push(n);
+    return out;
+  }
+
+  const grows = (info) => parseFloat(info.decls.find(([p]) => p === 'flex-grow')?.[1]) > 0;
+
+  /**
+   * Chooses which wrong sizes to pin this round, most likely causes first:
+   * 1. empty elements, which have no content to size themselves from;
+   * 2. otherwise the outermost wrong widths (widths come from parents) and the innermost wrong
+   *    heights (heights come from children), skipping flex items that grow when a sibling that
+   *    doesn't is also wrong, since the growing one is usually just filling the space left over.
+   * On the last round everything still wrong is pinned.
+   */
+  function pickPins(wrong, byEl, last) {
+    const all = [...[...wrong.width].map((it) => [it, 'width']), ...[...wrong.height].map((it) => [it, 'height'])];
+    if (last) return all;
+    const empty = all.filter(([it]) => !it.el.firstElementChild && !it.el.textContent.trim());
+    if (empty.length) return empty;
+
+    const fix = [];
+    for (const it of wrong.width) {
+      if (!ancestorsOf(it.el).some((a) => wrong.width.has(byEl.get(a)))) fix.push([it, 'width']);
+    }
+    const aboveWrongHeight = new Set();
+    for (const it of wrong.height) for (const a of ancestorsOf(it.el)) aboveWrongHeight.add(a);
+    for (const it of wrong.height) if (!aboveWrongHeight.has(it.el)) fix.push([it, 'height']);
+
+    const rigidParents = new Set(fix.filter(([it]) => !grows(it.info)).map(([it]) => it.el.parentElement));
+    return fix.filter(([it]) => !grows(it.info) || !rigidParents.has(it.el.parentElement));
+  }
+
+  /**
+   * Renders the output in a hidden frame with every loose width / height left out, compares each
+   * element with its size on the page, and pins sizes back where they differ, repeating until the
+   * layout matches. Returns the pins, or null when the output can't be measured (then every size
+   * is kept).
+   */
+  async function measurePins(snap, opts, fonts) {
+    const pins = new Map();
+    if (!snap.infos.some((info) => info.min.loose.length)) return pins;
+
+    const holder = document.createElement('div');
+    holder.appendChild(snap.root.cloneNode(true));
+    const { blocks } = applyStyles(snap, holder, opts, pins, true);
+    let root = holder.firstElementChild;
+    if (snap.meta.tableWrap) root = wrapTable(root, snap.meta.tableWrap);
+
+    const { frame, doc, win } = hiddenFrame('measure', Math.max(innerWidth, snap.meta.width + 32), innerHeight);
+    try {
+      if (doc.compatMode !== 'CSS1Compat') return null;
+      // A constructed sheet isn't subject to the page's style-src CSP, unlike a <style> element.
+      const sheet = new win.CSSStyleSheet();
+      sheet.replaceSync([...fonts, 'html, body { margin: 0; }', 'body { padding: 16px; }', ...blocks].join('\n'));
+      doc.adoptedStyleSheets = [sheet];
+      doc.body.appendChild(doc.importNode(root, true));
+      void doc.body.offsetHeight;
+      await Promise.race([doc.fonts.ready, new Promise((r) => setTimeout(r, 1500))]);
+
+      const items = Array.from(doc.querySelectorAll('[data-ct]'), (el) => {
+        const idx = +el.getAttribute('data-ct');
+        return { el, idx, info: snap.infos[idx] };
+      });
+      const byEl = new Map(items.map((it) => [it.el, it]));
+      const canPin = (it, p) => it.info.min.loose.includes(p) && !pins.get(it.idx)?.has(p);
+
+      for (let round = 0; round < PIN_ROUNDS; round++) {
+        const wrong = { width: new Set(), height: new Set() };
+        for (const it of items) {
+          const r = it.el.getBoundingClientRect();
+          if (Math.abs(r.width - it.info.rect[0]) > SIZE_TOLERANCE && canPin(it, 'width')) wrong.width.add(it);
+          if (Math.abs(r.height - it.info.rect[1]) > SIZE_TOLERANCE && canPin(it, 'height')) wrong.height.add(it);
+        }
+
+        const fix = pickPins(wrong, byEl, round === PIN_ROUNDS - 1);
+        if (!fix.length) break;
+
+        for (const [it, p] of fix) {
+          if (!pins.has(it.idx)) pins.set(it.idx, new Set());
+          pins.get(it.idx).add(p);
+          it.el.style.setProperty(p, it.info.min.decls.find(([q]) => q === p)[1]);
+        }
+      }
+      return pins;
+    } finally {
+      frame.remove();
+    }
+  }
+
+  async function build(snap, options) {
+    const opts = { ...DEFAULT_OPTIONS, ...options };
+    const fetchFn = CT.fetchResource || defaultFetch;
+    const fonts = opts.fonts ? await getFontFaces(snap, fetchFn) : [];
+    const pins = opts.minimal ? await sizePins(snap, opts, fonts) : null;
+    const stateBlocks = opts.states ? await getStateRules(snap, fetchFn) : [];
+
+    const holder = document.createElement('div');
+    holder.appendChild(snap.root.cloneNode(true));
+    const { blocks, infoByNode, classCount } = applyStyles(snap, holder, opts, pins, false);
 
     const bodyRule = ['  padding: 16px;'];
     if (opts.pageBg && snap.meta.pageBg) bodyRule.push(`  background: ${snap.meta.pageBg};`);
-    const sections = [];
-    if (opts.fonts) sections.push(...(await getFontFaces(snap, fetchFn)));
+    const sections = [...fonts];
     sections.push('html,\nbody {\n  margin: 0;\n}', `body {\n${bodyRule.join('\n')}\n}`);
     sections.push(...blocks, ...stateBlocks);
     let css = sections.filter(Boolean).join('\n\n');
@@ -1313,7 +1677,7 @@ ${body}
   </body>
 </html>
 `;
-    return { html, bytes: new Blob([html]).size, classCount: classByKey.size };
+    return { html, bytes: new Blob([html]).size, classCount };
   }
 
   CT.describe = describe;

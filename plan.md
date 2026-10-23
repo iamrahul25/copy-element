@@ -131,6 +131,7 @@ Each checkbox maps to an option flag; changing one re-runs the serializer (debou
 
 | Checkbox | Default | What it does |
 |---|---|---|
+| Minimal CSS (v2) | On | Keeps only declarations that affect the look, merged into shorthands (`margin`, `padding`, `border`, `border-radius`, `inset`, `gap`, `overflow`, `flex`, `text-decoration`, `outline`); drops transitions, no-op shadows, identity transforms, `min-*: auto`. Widths/heights are removed, the output is rendered in a hidden frame, and sizes are pinned back only on elements that come out a different size than on the page |
 | Pseudo-elements (`::before` / `::after`) | On | Reads `getComputedStyle(el, '::before')`; if `content` ≠ `none`, emits `.ct-N::before{...}` |
 | Embed images (base64) | Off | Converts `<img>`, `srcset` and CSS `background-image` URLs to data URIs (fetched via background worker to bypass CORS) |
 | Web fonts | On | Collects `@font-face` rules for font families actually used; optionally base64 the font files when "Embed images" is on |
