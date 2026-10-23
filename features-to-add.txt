@@ -1,0 +1,20 @@
+What to add next: 
+-----------------
+
+- Very small issue 
+
+
+
+Added already: 
+--------------
+
+1. Format the code when copy to clipboard or download .html file (proper format)
+2. Some syntax error in .html and copy to clipboard ->   
+
+For some empty values like this: (remove this type of this things)
+
+  transition-behavior: ;
+  transition-delay: ;
+  transition-duration: ;
+
+

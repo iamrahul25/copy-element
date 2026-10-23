@@ -1,6 +1,7 @@
 const SCRIPTS = [
   'shared/util.js',
   'shared/storage.js',
+  'content/format.js',
   'content/serializer.js',
   'content/picker.js',
   'content/panel.js',

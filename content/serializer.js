@@ -114,6 +114,7 @@
   const ROOT_SKIP_RE =
     /^(order|flex-grow|flex-shrink|flex-basis|align-self|justify-self|place-self|grid-row|grid-column|grid-area)/;
   const INSETS = new Set(['top', 'right', 'bottom', 'left']);
+  const RULE_STYLE_RE = /^(border-(?:top|right|bottom|left)|outline|column-rule|row-rule)-style$/;
   const EMPTY_SET = new Set();
 
   const DROP_TAGS = new Set([
@@ -275,6 +276,11 @@
 
   function cleanFamily(name) {
     return name.trim().replace(/^['"]|['"]$/g, '').toLowerCase();
+  }
+
+  // False for values that would print as `prop: ;` (e.g. var() references that resolved to nothing).
+  function hasValue(value) {
+    return /[^\s,]/.test(String(value || '').replace(/!\s*important\s*$/i, ''));
   }
 
   function isTransparent(color) {
@@ -439,6 +445,7 @@
       if (CURRENTCOLOR.has(p) && v === color) v = 'currentcolor';
       const inherited = INHERITED.has(p);
       if (inherited) inh[p] = v;
+      if (!hasValue(v)) continue;
 
       if (isRoot && ROOT_SKIP_RE.test(p)) continue;
       if (position === 'static' && INSETS.has(p)) continue;
@@ -449,7 +456,22 @@
       if (v === ref) continue;
       decls.push([p, v]);
     }
+    addRuleWidths(decls, get);
     return { decls, inh };
+  }
+
+  // A line's computed width is 0px whenever its style is none, so the width often matches the
+  // default and gets dropped. Once the style is set, the width falls back to `medium` (3px),
+  // e.g. Tailwind's `* { border: 0 solid }` would draw a box around every element.
+  function addRuleWidths(decls, get) {
+    for (let i = 0; i < decls.length; i++) {
+      const m = decls[i][0].match(RULE_STYLE_RE);
+      if (!m || /^(none|hidden)$/.test(decls[i][1])) continue;
+      const widthProp = `${m[1]}-width`;
+      const width = get(widthProp);
+      if (!hasValue(width) || decls.some(([p]) => p === widthProp)) continue;
+      decls.splice(++i, 0, [widthProp, width]);
+    }
   }
 
   function rootOverrides(cs) {
@@ -550,7 +572,7 @@
     }
   }
 
-  function walk(ctx, orig, cl, parentInh, isRoot) {
+  function walk(ctx, orig, cl, parentInh, isRoot, parentOneLine = false) {
     const tag = orig.localName;
     const ns = orig.namespaceURI || HTML_NS;
     if (!isRoot && shouldDrop(orig, tag)) {
@@ -592,9 +614,13 @@
     fixLocalUrls(ctx, decls);
     for (const f of splitTopLevel(cs.getPropertyValue('font-family'), ',')) ctx.families.add(cleanFamily(f));
 
+    const whiteSpace = cs.getPropertyValue('white-space-collapse') || cs.getPropertyValue('white-space');
     const info = {
       tag: outTag,
       inSvg: inSvg && tag !== 'svg',
+      display: cs.getPropertyValue('display'),
+      outOfFlow: cs.getPropertyValue('float') !== 'none' || /^(absolute|fixed)$/.test(cs.getPropertyValue('position')),
+      preserveSpace: !/^(collapse|normal|nowrap)$/.test(whiteSpace),
       decls,
       before: null,
       after: null,
@@ -624,6 +650,9 @@
       }
     }
 
+    const oneLine = !inSvg && (parentOneLine || isSingleLine(orig));
+    if (oneLine && cs.getPropertyValue('text-wrap-mode') === 'wrap') keepOnOneLine(decls, inh, parentInh);
+
     cleanAttributes(ctx, cl, inSvg, keepData);
     applyLiveState(orig, cl, tag);
 
@@ -635,8 +664,35 @@
     const origKids = Array.from(orig.children);
     const cloneKids = Array.from(cl.children);
     for (let i = 0; i < origKids.length; i++) {
-      if (cloneKids[i]) walk(ctx, origKids[i], cloneKids[i], inh, false);
+      if (cloneKids[i]) walk(ctx, origKids[i], cloneKids[i], inh, false, oneLine);
     }
+  }
+
+  // Text measured at one zoom level can come out a fraction of a pixel wider at another (pages
+  // are often zoomed, the saved file opens at 100%), which makes it wrap inside the frozen width
+  // and spill over whatever is below. Content that sat on one line is kept on one line.
+  function isSingleLine(el) {
+    if (!el.textContent.trim()) return false;
+    const range = document.createRange();
+    range.selectNodeContents(el);
+    let top = -Infinity;
+    let bottom = Infinity;
+    let minHeight = Infinity;
+    for (const r of range.getClientRects()) {
+      if (!r.width || !r.height) continue;
+      top = Math.max(top, r.top);
+      bottom = Math.min(bottom, r.bottom);
+      minHeight = Math.min(minHeight, r.height);
+    }
+    // Glyph boxes can be taller than the line height, so neighbouring lines may overlap slightly.
+    return minHeight !== Infinity && bottom - top >= minHeight / 2;
+  }
+
+  function keepOnOneLine(decls, inh, parentInh) {
+    const i = decls.findIndex(([p]) => p === 'text-wrap-mode');
+    if (i >= 0) decls.splice(i, 1);
+    if (parentInh?.['text-wrap-mode'] !== 'nowrap') decls.push(['text-wrap-mode', 'nowrap']);
+    inh['text-wrap-mode'] = 'nowrap';
   }
 
   function shouldDrop(el, tag) {
@@ -994,7 +1050,7 @@
         if (i < 0) return null;
         return [s.slice(0, i).trim(), s.slice(i + 1).trim()];
       })
-      .filter((d) => d && d[0] && d[1]);
+      .filter((d) => d && d[0] && hasValue(d[1]));
   }
 
   function rewriteWhereGroup(sel) {
@@ -1082,7 +1138,7 @@
         const resolved = decls
           .filter(([p]) => !p.startsWith('--'))
           .map(([p, v]) => [p, absCssUrls(resolveVars(v, cs, local), base)])
-          .filter(([, v]) => v && !v.includes('var('));
+          .filter(([, v]) => hasValue(v) && !v.includes('var('));
         if (!resolved.length) continue;
         const body = resolved.map(([p, v]) => `  ${p}: ${v};`).join('\n');
         const g = groups.get(body) || new Set();
@@ -1116,8 +1172,9 @@
       if (item.type !== 'font') return;
       const family = cleanFamily(item.rule.style.getPropertyValue('font-family'));
       if (!used.has(family)) return;
-      const css = absCssUrls(item.rule.cssText, base);
-      if (seen.has(css)) return;
+      const decls = parseDecls(item.rule.style.cssText).map(([p, v]) => [p, absCssUrls(v, base)]);
+      const css = decls.length ? formatBlock('@font-face', decls) : absCssUrls(item.rule.cssText, base);
+      if (!css || seen.has(css)) return;
       seen.add(css);
       out.push(css);
     });
@@ -1159,18 +1216,24 @@
   /* ------------------------------------------------------------------ */
 
   function formatBlock(selector, decls) {
-    return `${selector} {\n${decls.map(([p, v]) => `  ${p}: ${v};`).join('\n')}\n}`;
+    const lines = decls.filter(([, v]) => hasValue(v)).map(([p, v]) => `  ${p}: ${v};`);
+    return lines.length ? `${selector} {\n${lines.join('\n')}\n}` : '';
   }
 
   function escapeHtml(s) {
     return String(s).replace(/[&<>"]/g, (c) => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;' })[c]);
   }
 
-  function wrapTable(html, wrap) {
-    const style = wrap.style ? ` style="${escapeHtml(wrap.style)}"` : '';
-    if (wrap.tag === 'td' || wrap.tag === 'th') return `<table${style}><tbody><tr>${html}</tr></tbody></table>`;
-    if (wrap.tag === 'tr') return `<table${style}><tbody>${html}</tbody></table>`;
-    return `<table${style}>${html}</table>`;
+  function wrapTable(el, wrap) {
+    const table = document.createElement('table');
+    if (wrap.style) table.setAttribute('style', wrap.style);
+    let parent = table;
+    if (wrap.tag === 'td' || wrap.tag === 'th' || wrap.tag === 'tr') {
+      parent = parent.appendChild(document.createElement('tbody'));
+    }
+    if (wrap.tag === 'td' || wrap.tag === 'th') parent = parent.appendChild(document.createElement('tr'));
+    parent.appendChild(el);
+    return table;
   }
 
   async function build(snap, options) {
@@ -1183,9 +1246,11 @@
 
     const classByKey = new Map();
     const blocks = [];
+    const infoByNode = new Map();
     for (const node of holder.querySelectorAll('[data-ct]')) {
       const info = snap.infos[+node.getAttribute('data-ct')];
       node.removeAttribute('data-ct');
+      infoByNode.set(node, info);
       const parts = [];
       const decls = !opts.svg && info.inSvg ? [] : info.decls;
       if (decls.length) parts.push(['', decls]);
@@ -1215,26 +1280,37 @@
     if (opts.fonts) sections.push(...(await getFontFaces(snap, fetchFn)));
     sections.push('html,\nbody {\n  margin: 0;\n}', `body {\n${bodyRule.join('\n')}\n}`);
     sections.push(...blocks, ...stateBlocks);
-    let css = sections.join('\n\n');
+    let css = sections.filter(Boolean).join('\n\n');
 
     if (opts.images) css = await embedImages(snap, holder, css, fetchFn);
 
-    let body = holder.innerHTML;
-    if (snap.meta.tableWrap) body = wrapTable(body, snap.meta.tableWrap);
+    let root = holder.firstElementChild;
+    if (snap.meta.tableWrap) root = wrapTable(root, snap.meta.tableWrap);
+    const body = CT.format.html(root, 2, (el) => {
+      const info = infoByNode.get(el);
+      if (!info) return null;
+      return {
+        display: info.display || 'block',
+        outOfFlow: !!info.outOfFlow,
+        preserve: !!info.preserveSpace,
+        before: opts.pseudo && !!info.before,
+        after: opts.pseudo && !!info.after,
+      };
+    });
 
     const html = `<!DOCTYPE html>
 <html lang="en">
-<head>
-<meta charset="utf-8">
-<meta name="viewport" content="width=device-width, initial-scale=1">
-<title>${escapeHtml(snap.meta.name || 'Component')}</title>
-<style>
-${css}
-</style>
-</head>
-<body>
+  <head>
+    <meta charset="utf-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1">
+    <title>${escapeHtml(snap.meta.name || 'Component')}</title>
+    <style>
+${CT.format.indent(css, 3)}
+    </style>
+  </head>
+  <body>
 ${body}
-</body>
+  </body>
 </html>
 `;
     return { html, bytes: new Blob([html]).size, classCount: classByKey.size };
