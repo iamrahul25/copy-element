@@ -1,0 +1,50 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<title>Copy Thing preview</title>
+<style>
+  html,
+  body {
+    margin: 0;
+    width: 100%;
+    height: 100%;
+    overflow: hidden;
+  }
+  body {
+    display: flex;
+    align-items: center;
+    justify-content: center;
+  }
+  body.bg-checker {
+    background: repeating-conic-gradient(#eceef3 0% 25%, #ffffff 0% 50%) 0 0 / 16px 16px;
+  }
+  body.bg-white {
+    background: #ffffff;
+  }
+  body.bg-dark {
+    background: #18181b;
+  }
+  #stage {
+    flex: none;
+    position: relative;
+    overflow: hidden;
+  }
+  #frame {
+    position: absolute;
+    left: 0;
+    top: 0;
+    border: 0;
+    display: block;
+    background: transparent;
+    transform-origin: 0 0;
+  }
+</style>
+</head>
+<body class="bg-checker">
+<div id="stage"><iframe id="frame" sandbox="allow-same-origin" title="Component"></iframe></div>
+<script src="../shared/util.js"></script>
+<script src="../shared/storage.js"></script>
+<script src="preview.js"></script>
+</body>
+</html>

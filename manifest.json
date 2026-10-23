@@ -1,0 +1,36 @@
+{
+  "manifest_version": 3,
+  "name": "Copy Thing",
+  "version": "1.0.0",
+  "description": "Copy any element with its HTML and CSS as a standalone page. Live preview and a local component library.",
+  "permissions": ["activeTab", "scripting", "storage", "unlimitedStorage", "clipboardWrite", "contextMenus"],
+  "host_permissions": ["<all_urls>"],
+  "background": {
+    "service_worker": "background.js"
+  },
+  "action": {
+    "default_title": "Copy Thing: pick an element (Alt+Shift+C)",
+    "default_icon": {
+      "16": "icons/icon-16.png",
+      "48": "icons/icon-48.png",
+      "128": "icons/icon-128.png"
+    }
+  },
+  "icons": {
+    "16": "icons/icon-16.png",
+    "48": "icons/icon-48.png",
+    "128": "icons/icon-128.png"
+  },
+  "commands": {
+    "_execute_action": {
+      "suggested_key": { "default": "Alt+Shift+C" },
+      "description": "Pick an element to copy"
+    }
+  },
+  "web_accessible_resources": [
+    {
+      "resources": ["preview/preview.html", "content/panel.css"],
+      "matches": ["<all_urls>"]
+    }
+  ]
+}

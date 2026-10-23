@@ -1,0 +1,66 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Copy Thing – Component Library</title>
+<link rel="icon" href="../icons/icon-48.png">
+<link rel="stylesheet" href="library.css">
+</head>
+<body>
+<header class="top">
+  <div class="brand">
+    <img src="../icons/icon-48.png" alt="" width="28" height="28">
+    <h1>Component Library</h1>
+    <span id="count" class="count"></span>
+  </div>
+  <input id="search" class="search" type="search" placeholder="Search by name, site or text…" autocomplete="off">
+</header>
+
+<main>
+  <div id="grid" class="grid"></div>
+  <div id="empty" class="empty" hidden>
+    <h2>No components yet</h2>
+    <p>Click the Copy Thing icon (or press <kbd>Alt</kbd>+<kbd>Shift</kbd>+<kbd>C</kbd>) on any page, pick an element, then hit <strong>Save to library</strong>.</p>
+  </div>
+  <div id="no-results" class="empty" hidden>
+    <h2>No matches</h2>
+    <p>Try a different search.</p>
+  </div>
+</main>
+
+<dialog id="modal" class="modal">
+  <div class="modal-head">
+    <div class="modal-title">
+      <h2 id="modal-name"></h2>
+      <p id="modal-meta" class="meta"></p>
+    </div>
+    <div class="modal-actions">
+      <button id="modal-copy" class="btn primary">Copy HTML</button>
+      <button id="modal-download" class="btn secondary">Download .html</button>
+      <button id="modal-close" class="btn ghost" aria-label="Close">✕</button>
+    </div>
+  </div>
+  <div class="modal-tabs">
+    <button class="tab active" data-tab="preview">Preview</button>
+    <button class="tab" data-tab="code">HTML</button>
+    <span class="spacer"></span>
+    <select id="modal-bg" class="bg" title="Preview background">
+      <option value="checker">Checker</option>
+      <option value="white">White</option>
+      <option value="dark">Dark</option>
+    </select>
+  </div>
+  <div class="modal-body">
+    <iframe id="modal-frame" class="modal-frame" title="Component preview"></iframe>
+    <pre id="modal-code" class="code" hidden></pre>
+  </div>
+</dialog>
+
+<div id="toast" class="toast" hidden></div>
+
+<script src="../shared/util.js"></script>
+<script src="../shared/storage.js"></script>
+<script src="library.js"></script>
+</body>
+</html>
