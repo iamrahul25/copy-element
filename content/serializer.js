@@ -16,6 +16,7 @@
     images: false,
     keepClasses: false,
     pageBg: true,
+    tailwind: false,
   };
 
   // Properties that inherit from the parent. Listing a non-inherited property here would
@@ -172,6 +173,109 @@
   const PSEUDO_EL = new RegExp(PSEUDO_EL_SRC);
   const PSEUDO_EL_ALL = new RegExp(PSEUDO_EL_SRC, 'g');
   const OTHER_PSEUDO_EL = /(?<!\\)::(?!before|after|placeholder)[\w-]+/;
+
+  const TW_CDN = 'https://cdn.jsdelivr.net/npm/@tailwindcss/browser@4';
+  // Variables Tailwind defines on every element (v3) or registers with @property (v4).
+  const TW_VARS = [
+    '--tw-shadow',
+    '--tw-ring-offset-width',
+    '--tw-border-style',
+    '--tw-font-weight',
+    '--tw-leading',
+    '--tw-tracking',
+    '--tw-translate-x',
+    '--tw-space-y-reverse',
+    '--tw-outline-style',
+    '--tw-content',
+    '--tw-gradient-position',
+  ];
+  // Tailwind v4 (4.3) preflight, which the CDN script loads. Used as the baseline for the generated CSS
+  // in Tailwind mode, and inlined in the preview, which can't run the script.
+  const TW_PREFLIGHT = `*, ::after, ::before, ::backdrop, ::file-selector-button {
+  box-sizing: border-box; margin: 0; padding: 0; border: 0 solid;
+}
+html, :host {
+  line-height: 1.5; -webkit-text-size-adjust: 100%; tab-size: 4;
+  font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, 'Helvetica Neue', 'Noto Sans', Arial, sans-serif,
+    'Apple Color Emoji', 'Segoe UI Emoji', 'Segoe UI Symbol', 'Noto Color Emoji';
+  font-feature-settings: normal; font-variation-settings: normal; -webkit-tap-highlight-color: transparent;
+}
+hr { height: 0; color: inherit; border-top-width: 1px; }
+abbr:where([title]) { text-decoration: underline dotted; }
+h1, h2, h3, h4, h5, h6 { font-size: inherit; font-weight: inherit; }
+a { color: inherit; text-decoration: inherit; }
+b, strong { font-weight: bolder; }
+code, kbd, samp, pre {
+  font-family: ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, 'Liberation Mono', 'Courier New', monospace;
+  font-feature-settings: normal; font-variation-settings: normal; font-size: 1em;
+}
+small { font-size: 80%; }
+sub, sup { font-size: 75%; line-height: 0; position: relative; vertical-align: baseline; }
+sub { bottom: -0.25em; }
+sup { top: -0.5em; }
+table { text-indent: 0; border-color: inherit; border-collapse: collapse; }
+progress { vertical-align: baseline; }
+summary { display: list-item; }
+ol, ul, menu { list-style: none; }
+img, svg, video, canvas, audio, iframe, embed, object { display: block; vertical-align: middle; }
+img, video { max-width: 100%; height: auto; }
+button, input, select, optgroup, textarea, ::file-selector-button {
+  font: inherit; font-feature-settings: inherit; font-variation-settings: inherit; letter-spacing: inherit;
+  color: inherit; border-radius: 0; background-color: transparent; opacity: 1;
+}
+:where(select:is([multiple], [size])) optgroup { font-weight: bolder; }
+:where(select:is([multiple], [size])) optgroup option { padding-inline-start: 20px; }
+::file-selector-button { margin-inline-end: 4px; }
+::placeholder { opacity: 1; color: color-mix(in oklab, currentcolor 50%, transparent); }
+textarea { resize: vertical; }
+::-webkit-search-decoration { -webkit-appearance: none; }
+::-webkit-date-and-time-value { min-height: 1lh; text-align: inherit; }
+::-webkit-datetime-edit { display: inline-flex; }
+::-webkit-datetime-edit-fields-wrapper { padding: 0; }
+::-webkit-datetime-edit, ::-webkit-datetime-edit-year-field, ::-webkit-datetime-edit-month-field,
+::-webkit-datetime-edit-day-field, ::-webkit-datetime-edit-hour-field, ::-webkit-datetime-edit-minute-field,
+::-webkit-datetime-edit-second-field, ::-webkit-datetime-edit-millisecond-field,
+::-webkit-datetime-edit-meridiem-field { padding-block: 0; }
+::-webkit-calendar-picker-indicator { line-height: 1; }
+button, input:where([type='button'], [type='reset'], [type='submit']), ::file-selector-button { appearance: button; }
+::-webkit-inner-spin-button, ::-webkit-outer-spin-button { height: auto; }
+[hidden]:where(:not([hidden='until-found'])) { display: none !important; }`;
+  const TW_GROUP_RE = /^(group|peer)(\/[\w-]+)?$/;
+  // Theme namespaces: the CDN only generates utilities for names declared in @theme.
+  const TW_THEME_RE =
+    /^--(color|font|text|font-weight|tracking|leading|breakpoint|container|spacing|radius|shadow|inset-shadow|drop-shadow|text-shadow|blur|perspective|aspect|ease|animate|default)(-|$)/;
+  // Tailwind v3 output has no layers, so utilities are told apart from a site's own classes by name.
+  const TW3_UTILITY_RE = new RegExp(
+    '^(?:container|sr-only|not-sr-only|static|fixed|absolute|relative|sticky|isolate|visible|invisible|collapse|' +
+      'block|inline|inline-block|inline-flex|inline-grid|inline-table|flex|grid|table|contents|hidden|flow-root|' +
+      'list-item|truncate|italic|not-italic|underline|overline|line-through|no-underline|uppercase|lowercase|' +
+      'capitalize|normal-case|antialiased|subpixel-antialiased|grow|shrink|border|rounded|shadow|outline|blur|' +
+      'transition|transform|filter|ordinal|slashed-zero|lining-nums|oldstyle-nums|proportional-nums|tabular-nums|' +
+      'diagonal-fractions|stacked-fractions)$|' +
+      '^(?:inset|top|right|bottom|left|start|end|z|order|col|row|float|clear|object|overflow|overscroll|' +
+      '[mp][trblxyse]?|space|w|h|min-w|min-h|max-w|max-h|size|basis|flex|grow|shrink|grid|auto-cols|auto-rows|gap|' +
+      'justify|content|items|self|place|text|font|tracking|leading|indent|align|whitespace|break|hyphens|' +
+      'decoration|underline-offset|list|bg|from|via|to|fill|stroke|border|divide|rounded|outline|ring|shadow|' +
+      'opacity|mix-blend|bg-blend|blur|brightness|contrast|drop-shadow|grayscale|hue-rotate|invert|saturate|sepia|' +
+      'backdrop|transition|duration|ease|delay|animate|origin|scale|rotate|translate|skew|accent|appearance|cursor|' +
+      'caret|pointer-events|resize|scroll|snap|touch|select|will-change|aspect|columns|box|line-clamp|table|caption)-'
+  );
+  // v3 classes that kept their name in v4 but changed value.
+  const TW3_RENAMED_RE = /^(ring|shadow-(sm|inner)|(drop-shadow|blur|backdrop-blur)-sm|rounded(-[trblse]{1,2})?-sm)$/;
+  // v3 sites: v4's palette, shadows and font stacks differ, and a v3 theme (custom colors, fonts)
+  // isn't in CSS variables that could go in @theme, so these declarations always stay.
+  const TW3_KEEP_RE = /color$|^(fill|stroke|background-image|box-shadow|font-family)$/;
+  const TW3_TEXT_SIZE_RE = /^text-(xs|sm|base|lg|[2-9]?xl)(\/|$)/;
+  // Properties the root element must keep as captured (see rootOverrides and ROOT_SKIP_RE).
+  const TW_ROOT_LOCK_RE =
+    /^(margin-|position$|top$|right$|bottom$|left$|float$|transform$|translate$|rotate$|scale$|width$|height$|(min|max)-(width|height)$|order$|flex-|align-self$|justify-self$|place-self$|grid-(row|column|area))/;
+  // Layout-dependent properties: a computed `100%` or `auto` can't be compared with the used size
+  // on the page, so those values are trusted.
+  const TW_LAYOUT_RE =
+    /^(width|height|(min|max)-(width|height)|margin-(top|right|bottom|left)|top|right|bottom|left|flex-basis|grid-template-(columns|rows))$/;
+  const TW_RELATIVE_RE = /%|auto|\dfr|repeat\(|minmax\(|-content|\d(?:[sdl]?v[hwib]|vmin|vmax)\b/;
+  const TW_VAR_RE = /var\(\s*(--[\w-]+)/g;
+  const IMPORTANT_RE = /!\s*important\s*$/i;
 
   /* ------------------------------------------------------------------ */
   /* Small helpers                                                       */
@@ -378,9 +482,14 @@
     return { frame, doc, win };
   }
 
-  function createDefaults() {
+  function createDefaults(css) {
     const { frame, doc, win } = hiddenFrame('defaults', 1200, 800);
     const body = doc.body;
+    if (css) {
+      const sheet = new win.CSSStyleSheet();
+      sheet.replaceSync(css);
+      doc.adoptedStyleSheets = [sheet];
+    }
 
     const plainSvg = doc.createElementNS(SVG_NS, 'svg');
     body.appendChild(plainSvg);
@@ -720,13 +829,16 @@
 
   function capture(rootEl) {
     if (!(rootEl instanceof Element)) throw new Error('Nothing selected');
+    const tailwind = detectTailwind(rootEl);
     const defaults = createDefaults();
+    const twDefaults = tailwind ? createDefaults(TW_PREFLIGHT) : null;
     try {
       const holder = document.createElement('div');
       holder.appendChild(rootEl.cloneNode(true));
       const ctx = {
         rootEl,
         defaults,
+        twDefaults,
         infos: [],
         map: new Map(),
         keepIds: collectReferencedIds(rootEl),
@@ -766,13 +878,27 @@
           families: [...ctx.families],
           pageBg: pageBackground(rootEl),
           tableWrap,
+          tailwind,
           sourceUrl: location.href,
           sourceTitle: document.title,
+          scroll: { x: Math.round(scrollX), y: Math.round(scrollY) },
         },
       };
     } finally {
       defaults.destroy();
+      twDefaults?.destroy();
     }
+  }
+
+  function detectTailwind(el) {
+    const cs = getComputedStyle(el);
+    if (TW_VARS.some((v) => cs.getPropertyValue(v))) return true;
+    for (const sheet of document.styleSheets) {
+      try {
+        for (const rule of sheet.cssRules) if (rule.cssText.includes('--tw-')) return true;
+      } catch {}
+    }
+    return false;
   }
 
   function walk(ctx, orig, cl, parentInh, isRoot, parentOneLine = false, parentDisplay = '') {
@@ -812,75 +938,79 @@
     }
 
     const cs = getComputedStyle(orig);
-    const def = ctx.defaults.get(outTag, outNs, outTag === tag ? extraFor(orig, tag) : '');
     const overrides = isRoot ? rootOverrides(cs) : null;
     const get = (p) => (overrides && p in overrides ? overrides[p] : cs.getPropertyValue(p));
-    const { decls, inh } = computeDecls(cs, def, parentInh, overrides, isRoot);
-    // On flex and grid items min-width / min-height default to auto, not the 0 a plain div has.
-    if (!isRoot && FLEX_GRID_PARENT.test(parentDisplay)) {
-      for (const p of ['min-width', 'min-height']) {
-        if (get(p) === '0px' && !decls.some(([q]) => q === p)) decls.push([p, '0px']);
+    const svgChild = inSvg && tag !== 'svg';
+    const oneLine = !inSvg && (parentOneLine || isSingleLine(orig));
+
+    // The declarations, pseudo-elements and placeholder color that differ from `defaults`.
+    // Minimal mode: `min` is { decls, before, after, loose }, where `loose` lists the width /
+    // height declarations that may be dropped if the element sizes itself the same way without them.
+    const styleSet = (defaults) => {
+      const def = defaults.get(outTag, outNs, outTag === tag ? extraFor(orig, tag) : '');
+      const { decls, inh } = computeDecls(cs, def, parentInh, overrides, isRoot);
+      // On flex and grid items min-width / min-height default to auto, not the 0 a plain div has.
+      if (!isRoot && FLEX_GRID_PARENT.test(parentDisplay)) {
+        for (const p of ['min-width', 'min-height']) {
+          if (get(p) === '0px' && !decls.some(([q]) => q === p)) decls.push([p, '0px']);
+        }
       }
-    }
-    fixLocalUrls(ctx, decls);
+      fixLocalUrls(ctx, decls);
+      const set = { decls, before: null, after: null, placeholder: null, min: null };
+      const minPseudo = { before: null, after: null };
+      if (!inSvg) {
+        const spanDef = defaults.get('span');
+        for (const which of ['::before', '::after']) {
+          const pd = pseudoDecls(orig, which, inh, spanDef);
+          if (!pd) continue;
+          fixLocalUrls(ctx, pd.decls);
+          fixLocalUrls(ctx, pd.min);
+          const key = which === '::before' ? 'before' : 'after';
+          set[key] = pd.decls;
+          minPseudo[key] = pd.min;
+        }
+        if ((tag === 'input' || tag === 'textarea') && orig.hasAttribute('placeholder')) {
+          try {
+            const c = getComputedStyle(orig, '::placeholder').getPropertyValue('color');
+            if (c && c !== def.placeholderColor) set.placeholder = [['color', c]];
+          } catch {}
+        }
+      }
+      if (oneLine && cs.getPropertyValue('text-wrap-mode') === 'wrap') keepOnOneLine(decls, inh, parentInh);
+
+      const minDecls = minimize(decls, get, def.plain);
+      // The root keeps its width: in the page it came from its container, in the file it has none.
+      const loose =
+        FIXED_SIZE_TAGS.has(tag) || svgChild
+          ? []
+          : minDecls.map(([p]) => p).filter((p) => p === 'height' || (p === 'width' && !isRoot));
+      set.min = { decls: minDecls, ...minPseudo, loose };
+      return { set, inh };
+    };
+
+    const { set, inh } = styleSet(ctx.defaults);
     for (const f of splitTopLevel(cs.getPropertyValue('font-family'), ',')) ctx.families.add(cleanFamily(f));
+    const keepData = new Set();
+    for (const [p, v] of [...(set.before || []), ...(set.after || [])]) {
+      if (p === 'content') for (const m of v.matchAll(/attr\(\s*([\w-]+)/g)) keepData.add(m[1].toLowerCase());
+      if (p === 'font-family') for (const f of splitTopLevel(v, ',')) ctx.families.add(cleanFamily(f));
+    }
 
     const whiteSpace = cs.getPropertyValue('white-space-collapse') || cs.getPropertyValue('white-space');
+    const rect = orig.getBoundingClientRect();
     const info = {
       tag: outTag,
-      inSvg: inSvg && tag !== 'svg',
+      inSvg: svgChild,
       display: cs.getPropertyValue('display'),
       outOfFlow: cs.getPropertyValue('float') !== 'none' || /^(absolute|fixed)$/.test(cs.getPropertyValue('position')),
       preserveSpace: !/^(collapse|normal|nowrap)$/.test(whiteSpace),
-      decls,
-      before: null,
-      after: null,
-      placeholder: null,
+      ...set,
+      // The same, measured against Tailwind's preflight instead of the browser defaults.
+      tw: ctx.twDefaults ? styleSet(ctx.twDefaults).set : null,
       origClass: (orig.getAttribute('class') || '').trim(),
       stateClass: null,
-      // Minimal mode: { decls, before, after, loose }, where `loose` lists the width / height
-      // declarations that may be dropped if the element sizes itself the same way without them.
-      min: null,
-      rect: null,
+      rect: [rect.width, rect.height],
     };
-
-    const keepData = new Set();
-    const minPseudo = { before: null, after: null };
-    if (!inSvg) {
-      const spanDef = ctx.defaults.get('span');
-      for (const which of ['::before', '::after']) {
-        const pd = pseudoDecls(orig, which, inh, spanDef);
-        if (!pd) continue;
-        fixLocalUrls(ctx, pd.decls);
-        fixLocalUrls(ctx, pd.min);
-        for (const [p, v] of pd.decls) {
-          if (p === 'content') for (const m of v.matchAll(/attr\(\s*([\w-]+)/g)) keepData.add(m[1].toLowerCase());
-          if (p === 'font-family') for (const f of splitTopLevel(v, ',')) ctx.families.add(cleanFamily(f));
-        }
-        const key = which === '::before' ? 'before' : 'after';
-        info[key] = pd.decls;
-        minPseudo[key] = pd.min;
-      }
-      if ((tag === 'input' || tag === 'textarea') && orig.hasAttribute('placeholder')) {
-        try {
-          const c = getComputedStyle(orig, '::placeholder').getPropertyValue('color');
-          if (c && c !== def.placeholderColor) info.placeholder = [['color', c]];
-        } catch {}
-      }
-    }
-
-    const oneLine = !inSvg && (parentOneLine || isSingleLine(orig));
-    if (oneLine && cs.getPropertyValue('text-wrap-mode') === 'wrap') keepOnOneLine(decls, inh, parentInh);
-
-    const minDecls = minimize(decls, get, def.plain);
-    // The root keeps its width: in the page it came from its container, in the file it has none.
-    const loose =
-      FIXED_SIZE_TAGS.has(tag) || info.inSvg
-        ? []
-        : minDecls.map(([p]) => p).filter((p) => p === 'height' || (p === 'width' && !isRoot));
-    info.min = { decls: minDecls, ...minPseudo, loose };
-    const rect = orig.getBoundingClientRect();
-    info.rect = [rect.width, rect.height];
 
     cleanAttributes(ctx, cl, inSvg, keepData);
     applyLiveState(orig, cl, tag);
@@ -1210,34 +1340,39 @@
     return out.join(', ');
   }
 
-  function visitRules(entries, fn) {
-    const rec = (rules, base, parentSel) => {
+  /**
+   * Calls `fn` for each style and @font-face rule. Rules under a media / supports condition that
+   * doesn't match are skipped, or with `all` passed with `active: false`. Style items carry the
+   * dotted name of the @layer they are in.
+   */
+  function visitRules(entries, fn, all = false) {
+    const rec = (rules, base, parentSel, active, layer) => {
       for (const r of rules) {
         if (r instanceof CSSImportRule) continue;
-        if (r instanceof CSSMediaRule) {
+        if (r instanceof CSSMediaRule || r instanceof CSSSupportsRule) {
+          let ok = true;
           try {
-            if (!matchMedia(r.media.mediaText).matches) continue;
+            ok = r instanceof CSSMediaRule ? matchMedia(r.media.mediaText).matches : CSS.supports(r.conditionText);
           } catch {}
-          rec(r.cssRules, base, parentSel);
-        } else if (r instanceof CSSSupportsRule) {
-          try {
-            if (!CSS.supports(r.conditionText)) continue;
-          } catch {}
-          rec(r.cssRules, base, parentSel);
+          if (ok || all) rec(r.cssRules, base, parentSel, active && ok, layer);
         } else if (r instanceof CSSStyleRule) {
           const sel = parentSel ? expandNested(r.selectorText, parentSel) : r.selectorText;
-          fn({ type: 'style', selector: sel, style: r.style }, base);
-          if (r.cssRules && r.cssRules.length) rec(r.cssRules, base, sel);
+          fn({ type: 'style', selector: sel, style: r.style, active, layer }, base);
+          if (r.cssRules && r.cssRules.length) rec(r.cssRules, base, sel, active, layer);
         } else if (window.CSSNestedDeclarations && r instanceof CSSNestedDeclarations) {
-          if (parentSel) fn({ type: 'style', selector: parentSel, style: r.style }, base);
+          if (parentSel) fn({ type: 'style', selector: parentSel, style: r.style, active, layer }, base);
         } else if (r instanceof CSSFontFaceRule) {
           fn({ type: 'font', rule: r }, base);
+        } else if (window.CSSLayerBlockRule && r instanceof CSSLayerBlockRule) {
+          rec(r.cssRules, base, parentSel, active, layer ? `${layer}.${r.name}` : r.name);
+        } else if (window.CSSStartingStyleRule && r instanceof CSSStartingStyleRule) {
+          rec(r.cssRules, base, parentSel, false, layer);
         } else if (r.cssRules) {
-          rec(r.cssRules, base, parentSel);
+          rec(r.cssRules, base, parentSel, active, layer);
         }
       }
     };
-    for (const e of entries) rec(e.rules, e.base, null);
+    for (const e of entries) rec(e.rules, e.base, null, true, '');
   }
 
   /* ------------------------------------------------------------------ */
@@ -1441,6 +1576,256 @@
   }
 
   /* ------------------------------------------------------------------ */
+  /* Tailwind: keep utility classes, drop the CSS they already write     */
+  /* ------------------------------------------------------------------ */
+
+  function unescapeIdent(s) {
+    return s.replace(/\\([0-9a-fA-F]{1,6})\s?|\\(.)/g, (m, hex, ch) => (hex ? String.fromCodePoint(parseInt(hex, 16)) : ch));
+  }
+
+  // The class a utility rule is for: Tailwind writes it first, e.g. `:where(.space-y-4 > …)`.
+  function firstClass(selector) {
+    const m = selector.match(/\.((?:\\[0-9a-fA-F]{1,6}\s?|\\[^\n0-9a-fA-F]|[\w-]|[^\x00-\x7f])+)/);
+    return m ? unescapeIdent(m[1]) : null;
+  }
+
+  // `md:hover:-mt-4!` -> `mt-4`
+  function utilityBase(token) {
+    let depth = 0;
+    let start = 0;
+    for (let i = 0; i < token.length; i++) {
+      const c = token[i];
+      if (c === '[' || c === '(') depth++;
+      else if (c === ']' || c === ')') depth--;
+      else if (c === ':' && depth === 0) start = i + 1;
+    }
+    return token.slice(start).replace(/^!|!$/g, '').replace(/^-/, '');
+  }
+
+  function physical(p, rtl) {
+    const side = {
+      'block-start': 'top',
+      'block-end': 'bottom',
+      'inline-start': rtl ? 'right' : 'left',
+      'inline-end': rtl ? 'left' : 'right',
+    };
+    let m = p.match(/^border-(start|end)-(start|end)-radius$/);
+    if (m) return `border-${m[1] === 'start' ? 'top' : 'bottom'}-${side[`inline-${m[2]}`]}-radius`;
+    m = p.match(/^inset-((?:inline|block)-(?:start|end))$/);
+    if (m) return side[m[1]];
+    m = p.match(/^(min-|max-)?(inline|block)-size$/);
+    if (m) return `${m[1] || ''}${m[2] === 'inline' ? 'width' : 'height'}`;
+    return p.replace(/(inline|block)-(start|end)/, (s) => side[s]);
+  }
+
+  function longhandsOf(p) {
+    switch (p) {
+      case 'margin':
+      case 'padding':
+        return SIDES.map((s) => `${p}-${s}`);
+      case 'inset':
+        return SIDES;
+      case 'border':
+        return SIDES.flatMap((s) => ['width', 'style', 'color'].map((k) => `border-${s}-${k}`));
+      case 'border-radius':
+        return CORNERS.map((c) => `border-${c}-radius`);
+      case 'gap':
+        return ['row-gap', 'column-gap'];
+      case 'overflow':
+        return ['overflow-x', 'overflow-y'];
+      case 'flex':
+        return ['flex-grow', 'flex-shrink', 'flex-basis'];
+      case 'text-decoration':
+        return ['text-decoration-line', 'text-decoration-style', 'text-decoration-color', 'text-decoration-thickness'];
+      case 'outline':
+        return ['outline-color', 'outline-style', 'outline-width'];
+    }
+    const side = p.match(/^border-(top|right|bottom|left)$/);
+    if (side) return ['width', 'style', 'color'].map((k) => `border-${side[1]}-${k}`);
+    return [p];
+  }
+
+  // Drops declarations whose longhands (those the element actually sets) are all `covered`.
+  function withoutCovered(decls, covered, full) {
+    const present = new Set(full.map(([p]) => p));
+    return decls.filter(([p]) => {
+      const longs = longhandsOf(p);
+      const set = longs.filter((l) => present.has(l));
+      return !(set.length ? set : longs).every((l) => covered.has(l));
+    });
+  }
+
+  // Maps each Tailwind class to the rules written for it, from sheets that use Tailwind.
+  async function tailwindRules(snap, fetchFn) {
+    const entries = await loadSheets(snap, fetchFn);
+    const rules = new Map();
+    for (const entry of entries) {
+      const items = [];
+      visitRules([entry], (item) => item.type === 'style' && items.push(item), true);
+      if (!items.some((it) => it.style.cssText.includes('--tw-'))) continue;
+      // v4 puts utilities in @layer utilities; v3 output has no layers.
+      const layered = items.some((it) => it.layer);
+      for (const it of items) {
+        if (layered && !/(^|\.)utilities$/.test(it.layer)) continue;
+        for (const part of splitTopLevel(it.selector, ',')) {
+          const token = firstClass(part);
+          if (!token) continue;
+          if (!layered) {
+            const base = utilityBase(token);
+            if (!TW3_UTILITY_RE.test(base) || TW3_RENAMED_RE.test(base)) continue;
+          }
+          if (!rules.has(token)) rules.set(token, []);
+          rules.get(token).push({ selector: part.trim(), style: it.style, active: it.active, v3: !layered });
+        }
+      }
+    }
+    return rules;
+  }
+
+  /**
+   * Decides, per element, which Tailwind classes to keep and which properties they cover. A class
+   * is kept only if the value its rule gives, worked out in a hidden frame, matches the element's
+   * value on the page; a class overridden by other CSS (or written for a theme the CDN doesn't
+   * know) is dropped and its declarations stay in the generated CSS. Variant classes (`hover:`,
+   * `md:`) that don't apply right now are kept for the CDN to handle.
+   * Returns { byIdx: Map(idx -> { classes, covered }), theme, vars, tokenCount }.
+   */
+  async function getTailwind(snap, fetchFn) {
+    if (snap.cache.tailwind) return snap.cache.tailwind;
+    const rules = await tailwindRules(snap, fetchFn);
+    const byIdx = new Map();
+    const varSrc = new Map();
+    const tokens = new Set();
+
+    const { frame, doc, win } = hiddenFrame('tailwind', 400, 300);
+    // Not rendered, so sizes read back as computed (`100%`, `auto`) rather than used values.
+    const wrap = doc.createElement('div');
+    wrap.style.display = 'none';
+    const probe = wrap.appendChild(doc.createElement('div'));
+    doc.body.appendChild(wrap);
+    const names = new Map();
+    const probed = new Map();
+
+    const namesOf = (cssText, rtl) => {
+      const key = `${rtl}|${cssText}`;
+      if (!names.has(key)) {
+        probe.removeAttribute('style');
+        probe.style.cssText = cssText;
+        names.set(
+          key,
+          Array.from(probe.style)
+            .filter((p) => !p.startsWith('--'))
+            .map((p) => physical(p, rtl))
+        );
+      }
+      return names.get(key);
+    };
+
+    // Applies the declarations, with variables resolved on the element, to the probe and returns
+    // [physical property, computed value] for each longhand they set.
+    const probeValues = (decls, cs, parentFs, rtl) => {
+      const local = new Map([...decls].filter(([p]) => p.startsWith('--')));
+      const resolved = [...decls]
+        .filter(([p]) => !p.startsWith('--'))
+        .map(([p, v]) => [p, resolveVars(v.replace(IMPORTANT_RE, '').trim(), cs, local), IMPORTANT_RE.test(v)]);
+      const key = `${cs.fontSize}|${parentFs}|${rtl}|${JSON.stringify(resolved)}`;
+      if (!probed.has(key)) {
+        wrap.style.fontSize = parentFs;
+        probe.removeAttribute('style');
+        for (const [p, v, imp] of resolved) probe.style.setProperty(p, v, imp ? 'important' : '');
+        const set = Array.from(probe.style);
+        if (!set.includes('font-size')) probe.style.setProperty('font-size', cs.fontSize);
+        const pcs = win.getComputedStyle(probe);
+        probed.set(
+          key,
+          set.map((n) => {
+            const p = physical(n, rtl);
+            return [p, pcs.getPropertyValue(p)];
+          })
+        );
+      }
+      return probed.get(key);
+    };
+
+    try {
+      for (const [el, idx] of snap.map) {
+        const info = snap.infos[idx];
+        if (!info.origClass) continue;
+        const isRoot = el === snap.rootEl;
+        const cs = getComputedStyle(el);
+        const rtl = cs.getPropertyValue('direction') === 'rtl';
+        const parentFs = el.parentElement ? getComputedStyle(el.parentElement).fontSize : '16px';
+        const classes = [];
+        const covered = new Set();
+
+        for (const token of new Set(info.origClass.split(/\s+/))) {
+          if (TW_GROUP_RE.test(token)) {
+            classes.push(token);
+            continue;
+          }
+          const list = rules.get(token);
+          if (!list) continue;
+          if (isRoot && list.some((r) => namesOf(r.style.cssText, rtl).some((p) => TW_ROOT_LOCK_RE.test(p)))) continue;
+
+          // Later rules win, e.g. v4's `color-mix(in oklab, …)` inside @supports over its fallback.
+          const own = `.${CSS.escape(token)}`;
+          const decls = new Map();
+          for (const r of list) {
+            if (!r.active || r.selector !== own) continue;
+            for (const [p, v] of parseDecls(r.style.cssText)) {
+              decls.delete(p);
+              decls.set(p, v);
+            }
+          }
+          const props = [];
+          let ok = true;
+          if ([...decls.keys()].some((p) => !p.startsWith('--'))) {
+            for (const [p, got] of probeValues(decls, cs, parentFs, rtl)) {
+              const want = cs.getPropertyValue(p);
+              if (got === want || (!isRoot && TW_LAYOUT_RE.test(p) && TW_RELATIVE_RE.test(got))) {
+                props.push(p);
+              } else {
+                ok = false;
+                break;
+              }
+            }
+          }
+          if (!ok) continue;
+
+          classes.push(token);
+          tokens.add(token);
+          const v3 = list.some((r) => r.v3);
+          for (const p of props) {
+            if (v3 && (TW3_KEEP_RE.test(p) || (p === 'font-size' && !TW3_TEXT_SIZE_RE.test(utilityBase(token))))) continue;
+            covered.add(p);
+          }
+          for (const r of list) {
+            for (const m of r.style.cssText.matchAll(TW_VAR_RE)) {
+              if (!m[1].startsWith('--tw-') && !varSrc.has(m[1])) varSrc.set(m[1], cs);
+            }
+          }
+        }
+        if (classes.length) byIdx.set(idx, { classes, covered });
+      }
+    } finally {
+      frame.remove();
+    }
+
+    // Theme variables go in @theme so the CDN generates the classes that use them (custom colors,
+    // fonts…) with the site's values; any other variable a class reads goes on :root.
+    const theme = [];
+    const vars = [];
+    for (const [name, cs] of varSrc) {
+      const v = cs.getPropertyValue(name).trim();
+      if (v) (TW_THEME_RE.test(name) ? theme : vars).push([name, v]);
+    }
+    theme.sort((a, b) => a[0].localeCompare(b[0]));
+
+    snap.cache.tailwind = { byIdx, theme, vars, tokenCount: tokens.size };
+    return snap.cache.tailwind;
+  }
+
+  /* ------------------------------------------------------------------ */
   /* Build: snapshot + options -> standalone HTML document               */
   /* ------------------------------------------------------------------ */
 
@@ -1465,31 +1850,43 @@
     return table;
   }
 
+  // In Tailwind mode the styles are measured against Tailwind's preflight.
+  function styleOf(info, opts) {
+    return opts.tailwind && info.tw ? info.tw : info;
+  }
+
   /**
    * Picks the declarations for one element. In minimal mode `pins` (a Map of index -> Set of
-   * 'width' / 'height') says which loose sizes to keep; null keeps them all.
+   * 'width' / 'height') says which loose sizes to keep; null keeps them all. Declarations whose
+   * properties are all in `covered` (written by the element's Tailwind classes) are left out.
    */
-  function partsOf(info, idx, opts, pins, measuring) {
-    const src = opts.minimal ? info.min : info;
+  function partsOf(info, idx, opts, pins, measuring, covered) {
+    const base = styleOf(info, opts);
+    const src = opts.minimal ? base.min : base;
     let decls = !opts.svg && info.inSvg ? [] : src.decls;
     if (opts.minimal) {
       if (pins) {
         const keep = pins.get(idx);
-        decls = decls.filter(([p]) => !info.min.loose.includes(p) || keep?.has(p));
+        decls = decls.filter(([p]) => !base.min.loose.includes(p) || keep?.has(p));
       }
       // Sizes pinned while measuring are set inline later and still rely on box-sizing.
       if (!measuring && !decls.some(([p]) => SIZE_RE.test(p))) decls = decls.filter(([p]) => p !== 'box-sizing');
     }
+    if (covered?.size) decls = withoutCovered(decls, covered, base.decls);
     const parts = [];
     if (decls.length) parts.push(['', decls]);
     if (opts.pseudo && src.before) parts.push(['::before', src.before]);
     if (opts.pseudo && src.after) parts.push(['::after', src.after]);
-    if (info.placeholder) parts.push(['::placeholder', info.placeholder]);
+    if (base.placeholder) parts.push(['::placeholder', base.placeholder]);
     return parts;
   }
 
-  // Replaces the `data-ct` markers in `holder` with generated classes and returns their CSS blocks.
-  function applyStyles(snap, holder, opts, pins, measuring) {
+  /**
+   * Replaces the `data-ct` markers in `holder` with generated classes and returns their CSS blocks.
+   * With `tw` (from getTailwind) the kept Tailwind classes are added, and when `strip` is set the
+   * declarations they cover are left out.
+   */
+  function applyStyles(snap, holder, opts, pins, measuring, tw = null, strip = false) {
     const classByKey = new Map();
     const blocks = [];
     const infoByNode = new Map();
@@ -1498,10 +1895,12 @@
       const info = snap.infos[idx];
       if (!measuring) node.removeAttribute('data-ct');
       infoByNode.set(node, info);
-      const parts = partsOf(info, idx, opts, pins, measuring);
+      const twInfo = tw?.byIdx.get(idx);
+      const parts = partsOf(info, idx, opts, pins, measuring, strip ? twInfo?.covered : null);
 
       const classes = [];
       if (opts.keepClasses && info.origClass) classes.push(info.origClass);
+      else if (twInfo) classes.push(...twInfo.classes);
       if (parts.length) {
         const key = parts.map(([s, d]) => `${s}{${d.map((x) => x.join(':')).join(';')}}`).join('|');
         let cls = classByKey.get(key);
@@ -1524,7 +1923,7 @@
 
   function sizePins(snap, opts, fonts) {
     const cache = (snap.cache.pins = snap.cache.pins || new Map());
-    const key = `${opts.pseudo}|${opts.svg}|${opts.fonts}`;
+    const key = `${opts.pseudo}|${opts.svg}|${opts.fonts}|${opts.tailwind}`;
     if (!cache.has(key)) {
       cache.set(
         key,
@@ -1579,7 +1978,8 @@
    */
   async function measurePins(snap, opts, fonts) {
     const pins = new Map();
-    if (!snap.infos.some((info) => info.min.loose.length)) return pins;
+    const minOf = (info) => styleOf(info, opts).min;
+    if (!snap.infos.some((info) => minOf(info).loose.length)) return pins;
 
     const holder = document.createElement('div');
     holder.appendChild(snap.root.cloneNode(true));
@@ -1592,7 +1992,8 @@
       if (doc.compatMode !== 'CSS1Compat') return null;
       // A constructed sheet isn't subject to the page's style-src CSP, unlike a <style> element.
       const sheet = new win.CSSStyleSheet();
-      sheet.replaceSync([...fonts, 'html, body { margin: 0; }', 'body { padding: 16px; }', ...blocks].join('\n'));
+      const base = opts.tailwind ? [TW_PREFLIGHT] : [];
+      sheet.replaceSync([...base, ...fonts, 'html, body { margin: 0; }', 'body { padding: 16px; }', ...blocks].join('\n'));
       doc.adoptedStyleSheets = [sheet];
       doc.body.appendChild(doc.importNode(root, true));
       void doc.body.offsetHeight;
@@ -1603,7 +2004,7 @@
         return { el, idx, info: snap.infos[idx] };
       });
       const byEl = new Map(items.map((it) => [it.el, it]));
-      const canPin = (it, p) => it.info.min.loose.includes(p) && !pins.get(it.idx)?.has(p);
+      const canPin = (it, p) => minOf(it.info).loose.includes(p) && !pins.get(it.idx)?.has(p);
 
       for (let round = 0; round < PIN_ROUNDS; round++) {
         const wrong = { width: new Set(), height: new Set() };
@@ -1619,7 +2020,7 @@
         for (const [it, p] of fix) {
           if (!pins.has(it.idx)) pins.set(it.idx, new Set());
           pins.get(it.idx).add(p);
-          it.el.style.setProperty(p, it.info.min.decls.find(([q]) => q === p)[1]);
+          it.el.style.setProperty(p, minOf(it.info).decls.find(([q]) => q === p)[1]);
         }
       }
       return pins;
@@ -1628,20 +2029,44 @@
     }
   }
 
+  /**
+   * Returns { html, previewHtml, bytes, classCount, tailwindCount }. In Tailwind mode `html` loads
+   * the Tailwind CDN script; the preview can't run scripts, so `previewHtml` inlines the preflight
+   * and keeps the declarations the Tailwind classes cover instead.
+   */
   async function build(snap, options) {
     const opts = { ...DEFAULT_OPTIONS, ...options };
+    opts.tailwind = !!(opts.tailwind && snap.meta.tailwind);
     const fetchFn = CT.fetchResource || defaultFetch;
     const fonts = opts.fonts ? await getFontFaces(snap, fetchFn) : [];
     const pins = opts.minimal ? await sizePins(snap, opts, fonts) : null;
     const stateBlocks = opts.states ? await getStateRules(snap, fetchFn) : [];
+    const tw = opts.tailwind ? await getTailwind(snap, fetchFn) : null;
 
+    const ctx = { opts, fonts, pins, stateBlocks, tw, fetchFn };
+    const out = await assemble(snap, ctx, false);
+    const preview = tw ? await assemble(snap, ctx, true) : out;
+    return {
+      html: out.html,
+      previewHtml: preview.html,
+      bytes: new Blob([out.html]).size,
+      classCount: out.classCount,
+      tailwindCount: tw ? tw.tokenCount : 0,
+    };
+  }
+
+  async function assemble(snap, { opts, fonts, pins, stateBlocks, tw, fetchFn }, preview) {
+    const cdn = tw && !preview;
     const holder = document.createElement('div');
     holder.appendChild(snap.root.cloneNode(true));
-    const { blocks, infoByNode, classCount } = applyStyles(snap, holder, opts, pins, false);
+    const { blocks, infoByNode, classCount } = applyStyles(snap, holder, opts, pins, false, tw, cdn);
 
     const bodyRule = ['  padding: 16px;'];
     if (opts.pageBg && snap.meta.pageBg) bodyRule.push(`  background: ${snap.meta.pageBg};`);
-    const sections = [...fonts];
+    const sections = [];
+    if (tw && preview) sections.push(TW_PREFLIGHT);
+    sections.push(...fonts);
+    if (cdn && tw.vars.length) sections.push(formatBlock(':root', tw.vars));
     sections.push('html,\nbody {\n  margin: 0;\n}', `body {\n${bodyRule.join('\n')}\n}`);
     sections.push(...blocks, ...stateBlocks);
     let css = sections.filter(Boolean).join('\n\n');
@@ -1653,14 +2078,23 @@
     const body = CT.format.html(root, 2, (el) => {
       const info = infoByNode.get(el);
       if (!info) return null;
+      const style = styleOf(info, opts);
       return {
         display: info.display || 'block',
         outOfFlow: !!info.outOfFlow,
         preserve: !!info.preserveSpace,
-        before: opts.pseudo && !!info.before,
-        after: opts.pseudo && !!info.after,
+        before: opts.pseudo && !!style.before,
+        after: opts.pseudo && !!style.after,
       };
     });
+
+    let head = '';
+    if (cdn) {
+      head += `    <script src="${TW_CDN}"></script>\n`;
+      if (tw.theme.length) {
+        head += `    <style type="text/tailwindcss">\n${CT.format.indent(formatBlock('@theme', tw.theme), 3)}\n    </style>\n`;
+      }
+    }
 
     const html = `<!DOCTYPE html>
 <html lang="en">
@@ -1668,7 +2102,7 @@
     <meta charset="utf-8">
     <meta name="viewport" content="width=device-width, initial-scale=1">
     <title>${escapeHtml(snap.meta.name || 'Component')}</title>
-    <style>
+${head}    <style>
 ${CT.format.indent(css, 3)}
     </style>
   </head>
@@ -1677,7 +2111,7 @@ ${body}
   </body>
 </html>
 `;
-    return { html, bytes: new Blob([html]).size, classCount };
+    return { html, classCount };
   }
 
   CT.describe = describe;

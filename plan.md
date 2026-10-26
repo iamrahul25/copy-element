@@ -53,7 +53,8 @@ copy-thing/
 │   └── library.css
 ├── shared/
 │   ├── util.js            # DOM builder, clipboard, download, formatting helpers
-│   └── storage.js         # save / list / delete / options helpers
+│   ├── storage.js         # save / list / delete / options helpers
+│   └── highlight.js       # HTML / CSS / JS syntax highlighting for the code views
 ├── icons/                 # 16, 48, 128 px
 └── plan.md
 ```
@@ -139,6 +140,7 @@ Each checkbox maps to an option flag; changing one re-runs the serializer (debou
 | SVG internals | On | Styles shapes inside inline SVGs with computed `fill`/`stroke`; `<use href>` sprites are always inlined |
 | Keep classes | Off | Adds original classes next to generated ones (useful for reuse) |
 | Page background | On | Sets the nearest ancestor background color on `<body>` so light-on-dark components stay readable |
+| Tailwind CDN | Off | Only enabled when the page uses Tailwind. Diffs styles against Tailwind's preflight instead of browser defaults, keeps each Tailwind class whose rule (resolved in a hidden frame) matches the element's computed value, drops the declarations those classes cover, and adds the `@tailwindcss/browser@4` script plus an `@theme` block for the theme variables they use. The preview inlines the preflight and keeps the covered declarations, since it can't run scripts |
 | Preview background (select) | Checker | Preview-only: checker / white / dark (not added to output) |
 
 ---
@@ -161,6 +163,7 @@ Each checkbox maps to an option flag; changing one re-runs the serializer (debou
     "<id>": {
       id, name, html,          // full standalone HTML
       sourceUrl, sourceTitle,
+      sourceScroll: { x, y }, // page scroll when the element was picked; "Open page" restores it
       width, height,
       sizeBytes,
       createdAt

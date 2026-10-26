@@ -63,6 +63,15 @@
     downloadText(`${slug(comp.name)}.html`, comp.html);
   }
 
+  function openSource(comp) {
+    chrome.runtime.sendMessage({ type: 'ct-open-source', url: comp.sourceUrl, scroll: comp.sourceScroll });
+  }
+
+  function sourceTitle(comp) {
+    const y = comp.sourceScroll?.y;
+    return y ? `${comp.sourceUrl}\nOpens scrolled down ${y}px, where it was copied` : comp.sourceUrl;
+  }
+
   async function remove(comp) {
     if (!confirm(`Delete "${comp.name}"?`)) return;
     await CT.storage.remove(comp.id);
@@ -87,7 +96,18 @@
           'p',
           { class: 'meta' },
           comp.sourceUrl
-            ? h('a', { href: comp.sourceUrl, target: '_blank', rel: 'noreferrer', text: metaLine(comp), title: comp.sourceUrl })
+            ? h('a', {
+                href: comp.sourceUrl,
+                target: '_blank',
+                rel: 'noreferrer',
+                text: metaLine(comp),
+                title: sourceTitle(comp),
+                onclick: (e) => {
+                  if (e.ctrlKey || e.metaKey || e.shiftKey || e.altKey) return;
+                  e.preventDefault();
+                  openSource(comp);
+                },
+              })
             : metaLine(comp)
         )
       ),
@@ -120,17 +140,25 @@
   }
 
   /* ---------- modal ---------- */
+  const modalOpen = document.getElementById('modal-open');
+  let codeFor = null;
+
   function setTab(which) {
     for (const t of modal.querySelectorAll('.tab')) t.classList.toggle('active', t.dataset.tab === which);
     modalFrame.hidden = which !== 'preview';
     modalCode.hidden = which !== 'code';
+    if (which === 'code' && current && codeFor !== current) {
+      CT.highlight.render(modalCode, current.html);
+      codeFor = current;
+    }
   }
 
   function openModal(comp) {
     current = comp;
     document.getElementById('modal-name').textContent = comp.name;
     document.getElementById('modal-meta').textContent = metaLine(comp);
-    modalCode.textContent = comp.html;
+    modalOpen.hidden = !comp.sourceUrl;
+    modalOpen.title = comp.sourceUrl ? sourceTitle(comp) : '';
     modalFrame.src = `${PREVIEW}?id=${encodeURIComponent(comp.id)}&bg=${modalBg.value}`;
     setTab('preview');
     modal.showModal();
@@ -141,11 +169,14 @@
   document.getElementById('modal-close').addEventListener('click', () => modal.close());
   document.getElementById('modal-copy').addEventListener('click', () => current && copy(current));
   document.getElementById('modal-download').addEventListener('click', () => current && download(current));
+  modalOpen.addEventListener('click', () => current && openSource(current));
   modal.addEventListener('click', (e) => {
     if (e.target === modal) modal.close();
   });
   modal.addEventListener('close', () => {
     current = null;
+    codeFor = null;
+    modalCode.replaceChildren();
     modalFrame.removeAttribute('src');
   });
 

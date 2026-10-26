@@ -322,6 +322,52 @@ kbd {
   font: 12px/1.55 ui-monospace, SFMono-Regular, Menlo, Consolas, monospace;
   background: #f9fafb;
   white-space: pre;
+  color: #1f2937;
+}
+
+.tok-tag {
+  color: #116329;
+}
+
+.tok-attr {
+  color: #0550ae;
+}
+
+.tok-string {
+  color: #0a3069;
+}
+
+.tok-entity {
+  color: #953800;
+}
+
+.tok-comment {
+  color: #6e7781;
+  font-style: italic;
+}
+
+.tok-punct {
+  color: #6e7781;
+}
+
+.tok-keyword {
+  color: #cf222e;
+}
+
+.tok-selector {
+  color: #6639ba;
+}
+
+.tok-prop {
+  color: #0550ae;
+}
+
+.tok-number {
+  color: #953800;
+}
+
+.tok-fn {
+  color: #8250df;
 }
 
 .toast {

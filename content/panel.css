@@ -142,6 +142,51 @@
   user-select: text;
 }
 
+.tok-tag {
+  color: #116329;
+}
+
+.tok-attr {
+  color: #0550ae;
+}
+
+.tok-string {
+  color: #0a3069;
+}
+
+.tok-entity {
+  color: #953800;
+}
+
+.tok-comment {
+  color: #6e7781;
+  font-style: italic;
+}
+
+.tok-punct {
+  color: #6e7781;
+}
+
+.tok-keyword {
+  color: #cf222e;
+}
+
+.tok-selector {
+  color: #6639ba;
+}
+
+.tok-prop {
+  color: #0550ae;
+}
+
+.tok-number {
+  color: #953800;
+}
+
+.tok-fn {
+  color: #8250df;
+}
+
 .options {
   display: flex;
   flex-wrap: wrap;
@@ -175,6 +220,15 @@
 .opt input {
   margin: 0;
   accent-color: #4f46e5;
+}
+
+.opt.disabled {
+  opacity: 0.5;
+  cursor: default;
+}
+
+.opt.disabled:hover {
+  border-color: #e5e7eb;
 }
 
 .save,

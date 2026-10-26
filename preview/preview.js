@@ -57,7 +57,7 @@
   const id = params.get('id');
   if (id && parentIsExtension()) {
     window.CopyThing.storage.get(id).then((comp) => {
-      if (comp) render(comp.html, comp.width, comp.height);
+      if (comp) render(comp.previewHtml || comp.html, comp.width, comp.height);
     });
   }
 })();

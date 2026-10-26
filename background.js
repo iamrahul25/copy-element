@@ -1,6 +1,7 @@
 const SCRIPTS = [
   'shared/util.js',
   'shared/storage.js',
+  'shared/highlight.js',
   'content/format.js',
   'content/serializer.js',
   'content/picker.js',
@@ -32,6 +33,9 @@ chrome.runtime.onMessage.addListener((msg, sender, sendResponse) => {
   }
   if (msg?.type === 'ct-open-library') {
     openLibrary();
+  }
+  if (msg?.type === 'ct-open-source') {
+    openSource(msg.url, msg.scroll);
   }
   return false;
 });
@@ -67,6 +71,56 @@ async function openLibrary() {
   } else {
     await chrome.tabs.create({ url: LIBRARY_URL });
   }
+}
+
+// Opens the page a component was copied from, scrolled to where it was when it was picked.
+async function openSource(url, scroll) {
+  const tab = await chrome.tabs.create({ url });
+  if (!scroll?.x && !scroll?.y) return;
+  let restored = false;
+  const restore = () => {
+    if (restored) return;
+    restored = true;
+    chrome.tabs.onUpdated.removeListener(onUpdated);
+    chrome.tabs.onRemoved.removeListener(onRemoved);
+    chrome.scripting
+      .executeScript({ target: { tabId: tab.id }, func: restoreScroll, args: [scroll.x || 0, scroll.y || 0] })
+      .catch(() => {});
+  };
+  const onUpdated = (tabId, info) => {
+    if (tabId === tab.id && info.status === 'complete') restore();
+  };
+  const onRemoved = (tabId) => {
+    if (tabId !== tab.id) return;
+    chrome.tabs.onUpdated.removeListener(onUpdated);
+    chrome.tabs.onRemoved.removeListener(onRemoved);
+  };
+  chrome.tabs.onUpdated.addListener(onUpdated);
+  chrome.tabs.onRemoved.addListener(onRemoved);
+  const current = await chrome.tabs.get(tab.id).catch(() => null);
+  if (current?.status === 'complete') restore();
+}
+
+// Runs in the page. Lazy-loaded content can make the page too short at first, and some sites
+// reset the scroll after loading, so keep applying it until it sticks or the user scrolls.
+function restoreScroll(x, y) {
+  const deadline = Date.now() + 10000;
+  let stopped = false;
+  let settled = 0;
+  const stop = () => (stopped = true);
+  for (const type of ['wheel', 'touchstart', 'keydown', 'mousedown']) {
+    addEventListener(type, stop, { once: true, passive: true, capture: true });
+  }
+  const tick = () => {
+    if (stopped) return;
+    if (Math.abs(scrollX - x) < 2 && Math.abs(scrollY - y) < 2) settled++;
+    else {
+      settled = 0;
+      scrollTo({ left: x, top: y, behavior: 'instant' });
+    }
+    if (settled < 4 && Date.now() < deadline) setTimeout(tick, 250);
+  };
+  tick();
 }
 
 async function fetchResource(url, as) {

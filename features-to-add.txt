@@ -1,8 +1,12 @@
 What to add next: 
 -----------------
 
-- Very small issue 
+- There is one issue right now our program copy, html, css only: Can we add option to copy Javascript as well - Version:3
+  Add a checkbox for copying the javascript and live we can se the component moving or animation or something. 
 
+  https://www.getlayers.ai/ -> Unable to copy the button border moving it is because of JS may be - or find the cause
+
+- 
 
 
 Added already: 
@@ -16,5 +20,21 @@ For some empty values like this: (remove this type of this things)
   transition-behavior: ;
   transition-delay: ;
   transition-duration: ;
+
+3. If tailwind css class are detected import tailwind css (check button: "Tailwind CDN")
+  <script src="https://cdn.jsdelivr.net/npm/@tailwindcss/browser@4"></script>
+  And remove those written class in css styles.
+
+4. When checking and unchecking boxes such as: Minimal CSS, Remove Tailwind CSS written style (short word),
+   it should also show the total number of lines of codes.
+   -> Status line shows "212 lines (−38)": the total, plus the change from the last toggle.
+
+5. In code we can add highlight of code, with color coding as well.
+   -> HTML tab (panel and library) highlights tags, attributes, CSS selectors / properties / values and JS.
+
+6. When saving a component to a library - save the URL at that time and at what point of scroll.
+   So, that later we can open the website again.
+   -> Saves the page URL and scroll position from when the element was picked. In the library, click the
+      site name on a card or "Open page" in the full preview to reopen the page scrolled to that spot.
 
 

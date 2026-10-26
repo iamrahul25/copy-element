@@ -22,7 +22,16 @@
     ['images', 'Embed images', 'Inline images as base64 so the file works offline'],
     ['keepClasses', 'Keep classes', 'Keep the original class names'],
     ['pageBg', 'Page background', 'Use the page color behind the component'],
+    [
+      'tailwind',
+      'Tailwind CDN',
+      'Keep the Tailwind classes, load Tailwind from its CDN and leave out the CSS those classes already write',
+    ],
   ];
+  // Options that only apply when the page has something for them.
+  const AVAILABLE = {
+    tailwind: [(snap) => !!snap?.meta.tailwind, 'No Tailwind CSS found on this page'],
+  };
 
   CT.fetchResource = (url, as) =>
     chrome.runtime
@@ -91,7 +100,10 @@
       snap,
       opts: await CT.storage.getOptions(CT.serializer.DEFAULT_OPTIONS),
       html: '',
+      previewHtml: '',
       bytes: 0,
+      lines: 0,
+      codeStale: true,
       bg: 'checker',
       ready: false,
       seq: 0,
@@ -120,6 +132,12 @@
       tabCode.classList.toggle('active', !preview);
       frame.hidden = !preview;
       code.hidden = preview;
+      if (!preview) showCode();
+    };
+    const showCode = () => {
+      if (!state.codeStale) return;
+      CT.highlight.render(code, state.html);
+      state.codeStale = false;
     };
     tabPreview.addEventListener('click', () => setTab('preview'));
     tabCode.addEventListener('click', () => setTab('code'));
@@ -139,13 +157,16 @@
       h('option', { value: 'dark', text: 'Dark' })
     );
 
-    const optionEls = OPTIONS.map(([key, label, title]) =>
-      h(
+    const optionEls = OPTIONS.map(([key, label, title]) => {
+      const [available, why] = AVAILABLE[key] || [];
+      const enabled = !available || available(snap);
+      return h(
         'label',
-        { class: 'opt', title },
+        { class: enabled ? 'opt' : 'opt disabled', title: enabled ? title : why },
         h('input', {
           type: 'checkbox',
-          checked: !!state.opts[key],
+          checked: enabled && !!state.opts[key],
+          disabled: !enabled,
           onchange: (e) => {
             state.opts[key] = e.target.checked;
             CT.storage.setOptions(state.opts);
@@ -153,8 +174,8 @@
           },
         }),
         h('span', { text: label })
-      )
-    );
+      );
+    });
 
     const btn = (text, cls, onclick, title) => h('button', { class: `btn ${cls || ''}`, text, onclick, title });
 
@@ -186,8 +207,10 @@
           await CT.storage.save({
             name: nameInput.value.trim() || snap.meta.name || 'Component',
             html: state.html,
+            previewHtml: state.previewHtml !== state.html ? state.previewHtml : undefined,
             sourceUrl: snap.meta.sourceUrl,
             sourceTitle: snap.meta.sourceTitle,
+            sourceScroll: snap.meta.scroll,
             width: snap.meta.width,
             height: snap.meta.height,
             sizeBytes: state.bytes,
@@ -232,7 +255,7 @@
     function postPreview() {
       if (!state.ready || !state.html) return;
       frame.contentWindow.postMessage(
-        { type: 'ct-render', html: state.html, width: snap.meta.width, height: snap.meta.height, bg: state.bg },
+        { type: 'ct-render', html: state.previewHtml, width: snap.meta.width, height: snap.meta.height, bg: state.bg },
         EXT_ORIGIN
       );
     }
@@ -246,13 +269,21 @@
       const seq = ++state.seq;
       setStatus('Building…');
       try {
-        const { html, bytes, classCount } = await CT.serializer.build(snap, state.opts);
+        const { html, previewHtml, bytes, classCount, tailwindCount } = await CT.serializer.build(snap, state.opts);
         if (seq !== state.seq || !ui) return;
         state.html = html;
+        state.previewHtml = previewHtml;
         state.bytes = bytes;
-        code.textContent = html;
+        state.codeStale = true;
+        if (!code.hidden) showCode();
         postPreview();
-        const notes = [`${snap.meta.nodeCount} elements`, `${classCount} classes`, formatBytes(bytes)];
+        const lines = html.replace(/\n$/, '').split('\n').length;
+        const delta = state.lines ? lines - state.lines : 0;
+        state.lines = lines;
+        const lineNote = `${lines} lines${delta ? ` (${delta > 0 ? '+' : '−'}${Math.abs(delta)})` : ''}`;
+        const notes = [lineNote, `${snap.meta.nodeCount} elements`, `${classCount} classes`];
+        if (html !== previewHtml) notes.push(`${tailwindCount} Tailwind classes`);
+        notes.push(formatBytes(bytes));
         let kind = '';
         if (snap.meta.nodeCount > LARGE_NODES) {
           notes.push('large element');
