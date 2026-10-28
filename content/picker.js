@@ -1,7 +1,7 @@
 (() => {
   'use strict';
-  const CT = (window.CopyThing = window.CopyThing || {});
-  if (CT.picker) return;
+  const UIP = (window.UiPicker = window.UiPicker || {});
+  if (UIP.picker) return;
 
   const ACCENT = '#6366f1';
   let active = null;
@@ -17,7 +17,7 @@
     stop();
 
     const host = document.createElement('div');
-    host.setAttribute('data-copything', 'picker');
+    host.setAttribute('data-ui-picker', 'picker');
     css(host, {
       all: 'initial',
       position: 'fixed',
@@ -79,7 +79,7 @@
       host.style.setProperty('pointer-events', 'none', 'important');
       let el = document.elementFromPoint(x, y);
       host.style.setProperty('pointer-events', 'auto', 'important');
-      if (!el || el.closest('[data-copything]')) return null;
+      if (!el || el.closest('[data-ui-picker]')) return null;
       if (el === document.documentElement) el = document.body;
       return el;
     };
@@ -99,7 +99,7 @@
         width: `${r.width}px`,
         height: `${r.height}px`,
       });
-      label.textContent = `${CT.describe(el)}   ${Math.round(r.width)} × ${Math.round(r.height)}`;
+      label.textContent = `${UIP.describe(el)}   ${Math.round(r.width)} × ${Math.round(r.height)}`;
       const top = r.top > 28 ? r.top - 26 : Math.min(r.bottom + 4, innerHeight - 26);
       css(label, {
         display: 'block',
@@ -183,5 +183,5 @@
     active?.cleanup();
   }
 
-  CT.picker = { start, stop, isActive: () => !!active };
+  UIP.picker = { start, stop, isActive: () => !!active };
 })();

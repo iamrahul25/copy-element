@@ -1,4 +1,4 @@
-"""Launcher for the Copy Thing Chrome extension."""
+"""Launcher for the UI Picker Chrome extension."""
 
 import json
 import os
@@ -88,9 +88,9 @@ def run_project():
     subprocess.Popen(args, stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL)
 
     if installed:
-        print(f"Launched {Path(browser).name} with Copy Thing (profile: {PROFILE_DIR.name}).")
-        print("Click the Copy Thing icon (puzzle-piece menu) or press Alt+Shift+C, then pick an element.")
-        print("Code changes: click the reload arrow on the Copy Thing card in chrome://extensions.")
+        print(f"Launched {Path(browser).name} with UI Picker (profile: {PROFILE_DIR.name}).")
+        print("Click the UI Picker icon (puzzle-piece menu) or press Alt+Shift+C, then pick an element.")
+        print("Code changes: click the reload arrow on the UI Picker card in chrome://extensions.")
         return
 
     copied = copy_to_clipboard(str(ROOT))
@@ -99,14 +99,14 @@ def run_project():
     print("  1. Turn on 'Developer mode' (top-right of the Extensions page).")
     print("  2. Click 'Load unpacked' and select this folder:")
     print(f"       {ROOT}" + ("   (path copied to clipboard - paste it in the folder dialog)" if copied else ""))
-    print("  3. Click the puzzle-piece icon in the toolbar and pin Copy Thing.")
+    print("  3. Click the puzzle-piece icon in the toolbar and pin UI Picker.")
     print("Chrome remembers it for this profile, so next time option 1 opens straight to the browser.")
 
 
 def main():
     actions = {"1": run_project}
     while True:
-        print("\n=== Copy Thing ===")
+        print("\n=== UI Picker ===")
         print("1. Run the project")
         print("2. Exit")
         try:

@@ -1,6 +1,6 @@
 (() => {
-  const CT = (globalThis.CopyThing = globalThis.CopyThing || {});
-  if (CT.highlight) return;
+  const UIP = (globalThis.UiPicker = globalThis.UiPicker || {});
+  if (UIP.highlight) return;
 
   // Each token becomes a DOM node; past these sizes plain text is faster and just as readable.
   const MAX_LENGTH = 8 * 1024 * 1024;
@@ -230,5 +230,5 @@
     target.replaceChildren(frag);
   }
 
-  CT.highlight = { tokenize, render };
+  UIP.highlight = { tokenize, render };
 })();

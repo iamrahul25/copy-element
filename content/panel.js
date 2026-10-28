@@ -1,9 +1,9 @@
 (() => {
   'use strict';
-  const CT = (window.CopyThing = window.CopyThing || {});
-  if (CT.panel) return;
+  const UIP = (window.UiPicker = window.UiPicker || {});
+  if (UIP.panel) return;
 
-  const { h, slug, formatBytes, copyText, downloadText } = CT.util;
+  const { h, slug, formatBytes, copyText, downloadText } = UIP.util;
   const EXT_ORIGIN = new URL(chrome.runtime.getURL('')).origin;
   const PREVIEW_URL = chrome.runtime.getURL('preview/preview.html');
   const LARGE_NODES = 2000;
@@ -33,9 +33,9 @@
     tailwind: [(snap) => !!snap?.meta.tailwind, 'No Tailwind CSS found on this page'],
   };
 
-  CT.fetchResource = (url, as) =>
+  UIP.fetchResource = (url, as) =>
     chrome.runtime
-      .sendMessage({ type: 'ct-fetch', url, as })
+      .sendMessage({ type: 'uip-fetch', url, as })
       .catch((err) => ({ ok: false, error: String(err) }));
 
   let sheetPromise = null;
@@ -54,18 +54,18 @@
 
   let ui = null;
 
-  CT.start = () => {
-    if (CT.picker.isActive()) {
-      CT.picker.stop();
+  UIP.start = () => {
+    if (UIP.picker.isActive()) {
+      UIP.picker.stop();
       return;
     }
     close();
-    CT.picker.start((el) => {
+    UIP.picker.start((el) => {
       let snap;
       try {
-        snap = CT.serializer.capture(el);
+        snap = UIP.serializer.capture(el);
       } catch (err) {
-        console.error('[Copy Thing]', err);
+        console.error('[UI Picker]', err);
         open(null, err);
         return;
       }
@@ -82,7 +82,7 @@
 
   async function open(snap, error) {
     close();
-    const host = h('div', { 'data-copything': 'panel' });
+    const host = h('div', { 'data-ui-picker': 'panel' });
     for (const [k, v] of Object.entries({
       all: 'initial',
       position: 'fixed',
@@ -98,7 +98,7 @@
     const shadow = host.attachShadow({ mode: 'open' });
     const state = {
       snap,
-      opts: await CT.storage.getOptions(CT.serializer.DEFAULT_OPTIONS),
+      opts: await UIP.storage.getOptions(UIP.serializer.DEFAULT_OPTIONS),
       html: '',
       previewHtml: '',
       bytes: 0,
@@ -136,7 +136,7 @@
     };
     const showCode = () => {
       if (!state.codeStale) return;
-      CT.highlight.render(code, state.html);
+      UIP.highlight.render(code, state.html);
       state.codeStale = false;
     };
     tabPreview.addEventListener('click', () => setTab('preview'));
@@ -169,7 +169,7 @@
           disabled: !enabled,
           onchange: (e) => {
             state.opts[key] = e.target.checked;
-            CT.storage.setOptions(state.opts);
+            UIP.storage.setOptions(state.opts);
             scheduleRender();
           },
         }),
@@ -182,11 +182,11 @@
     const header = h(
       'header',
       { class: 'head' },
-      h('div', { class: 'title' }, h('strong', { text: 'Copy Thing' }), sub),
+      h('div', { class: 'title' }, h('strong', { text: 'UI Picker' }), sub),
       h(
         'div',
         { class: 'head-actions' },
-        btn('Library', 'ghost', () => chrome.runtime.sendMessage({ type: 'ct-open-library' }), 'Open component library'),
+        btn('Library', 'ghost', () => chrome.runtime.sendMessage({ type: 'uip-open-library' }), 'Open component library'),
         btn('✕', 'ghost icon', close, 'Close')
       )
     );
@@ -204,7 +204,7 @@
         nameInput,
         btn('Save to library', 'secondary', async () => {
           if (!state.html) return;
-          await CT.storage.save({
+          await UIP.storage.save({
             name: nameInput.value.trim() || snap.meta.name || 'Component',
             html: state.html,
             previewHtml: state.previewHtml !== state.html ? state.previewHtml : undefined,
@@ -231,7 +231,7 @@
           downloadText(`${slug(nameInput.value || snap.meta.name)}.html`, state.html, shadow);
           setStatus('Downloaded', 'ok');
         }),
-        btn('Re-pick', 'ghost', () => CT.start(), 'Pick another element')
+        btn('Re-pick', 'ghost', () => UIP.start(), 'Pick another element')
       ),
       status
     );
@@ -240,7 +240,7 @@
     try {
       shadow.adoptedStyleSheets = [await getSheet()];
     } catch (err) {
-      console.error('[Copy Thing] could not load panel styles', err);
+      console.error('[UI Picker] could not load panel styles', err);
     }
     document.documentElement.appendChild(host);
     host.style.setProperty('visibility', 'visible', 'important');
@@ -255,7 +255,7 @@
     function postPreview() {
       if (!state.ready || !state.html) return;
       frame.contentWindow.postMessage(
-        { type: 'ct-render', html: state.previewHtml, width: snap.meta.width, height: snap.meta.height, bg: state.bg },
+        { type: 'uip-render', html: state.previewHtml, width: snap.meta.width, height: snap.meta.height, bg: state.bg },
         EXT_ORIGIN
       );
     }
@@ -269,7 +269,7 @@
       const seq = ++state.seq;
       setStatus('Building…');
       try {
-        const { html, previewHtml, bytes, classCount, tailwindCount } = await CT.serializer.build(snap, state.opts);
+        const { html, previewHtml, bytes, classCount, tailwindCount } = await UIP.serializer.build(snap, state.opts);
         if (seq !== state.seq || !ui) return;
         state.html = html;
         state.previewHtml = previewHtml;
@@ -295,14 +295,14 @@
         }
         setStatus(notes.join(' · '), kind);
       } catch (err) {
-        console.error('[Copy Thing]', err);
+        console.error('[UI Picker]', err);
         if (seq === state.seq) setStatus(`Build failed: ${err.message}`, 'error');
       }
     }
 
     const onMessage = (e) => {
       if (e.source !== frame.contentWindow || e.origin !== EXT_ORIGIN) return;
-      if (e.data?.type === 'ct-rendered') {
+      if (e.data?.type === 'uip-rendered') {
         const pct = Math.round(e.data.scale * 100);
         scaleNote.textContent = pct < 100 ? `${pct}%` : '';
       }
@@ -348,5 +348,5 @@
     });
   }
 
-  CT.panel = { open, close };
+  UIP.panel = { open, close };
 })();

@@ -1,6 +1,6 @@
 {
   "manifest_version": 3,
-  "name": "Copy Thing",
+  "name": "UI Picker",
   "version": "2.0.0",
   "description": "Copy any element with its HTML and CSS as a standalone page. Live preview and a local component library.",
   "permissions": ["activeTab", "scripting", "storage", "unlimitedStorage", "clipboardWrite", "contextMenus"],
@@ -9,7 +9,7 @@
     "service_worker": "background.js"
   },
   "action": {
-    "default_title": "Copy Thing: pick an element (Alt+Shift+C)",
+    "default_title": "UI Picker: pick an element (Alt+Shift+C)",
     "default_icon": {
       "16": "icons/icon-16.png",
       "48": "icons/icon-48.png",

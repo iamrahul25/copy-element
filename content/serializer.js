@@ -1,7 +1,7 @@
 (() => {
   'use strict';
-  const CT = (window.CopyThing = window.CopyThing || {});
-  if (CT.serializer) return;
+  const UIP = (window.UiPicker = window.UiPicker || {});
+  if (UIP.serializer) return;
 
   const HTML_NS = 'http://www.w3.org/1999/xhtml';
   const SVG_NS = 'http://www.w3.org/2000/svg';
@@ -69,7 +69,7 @@
   // sets on a tag (e.g. font-size on <h1>, font on <button>).
   const PROBE_STYLE = [
     'color:rgb(1,2,3)',
-    'font-family:ct-probe',
+    'font-family:uip-probe',
     'font-size:23px',
     'font-style:italic',
     'font-weight:300',
@@ -454,7 +454,7 @@ button, input:where([type='button'], [type='reset'], [type='submit']), ::file-se
 
   function hiddenFrame(name, width, height) {
     const frame = document.createElement('iframe');
-    frame.setAttribute('data-copything', name);
+    frame.setAttribute('data-ui-picker', name);
     frame.setAttribute('aria-hidden', 'true');
     frame.setAttribute('tabindex', '-1');
     frame.style.cssText = [
@@ -1017,7 +1017,7 @@ button, input:where([type='button'], [type='reset'], [type='submit']), ::file-se
 
     const idx = ctx.infos.push(info) - 1;
     ctx.map.set(orig, idx);
-    cl.setAttribute('data-ct', String(idx));
+    cl.setAttribute('data-uip', String(idx));
 
     if (!recurse) return;
     const origKids = Array.from(orig.children);
@@ -1056,7 +1056,7 @@ button, input:where([type='button'], [type='reset'], [type='submit']), ::file-se
 
   function shouldDrop(el, tag) {
     if (DROP_TAGS.has(tag)) return true;
-    if (el.hasAttribute('data-copything')) return true;
+    if (el.hasAttribute('data-ui-picker')) return true;
     if (tag === 'source' && el.parentElement?.localName === 'picture') return true;
     return false;
   }
@@ -1141,7 +1141,7 @@ button, input:where([type='button'], [type='reset'], [type='submit']), ::file-se
   function cleanAttributes(ctx, cl, inSvg, keepData) {
     for (const { name, value } of Array.from(cl.attributes)) {
       const n = name.toLowerCase();
-      if (n === 'class' || n === 'style' || n === 'data-ct' || DROP_ATTR_RE.test(n)) {
+      if (n === 'class' || n === 'style' || n === 'data-uip' || DROP_ATTR_RE.test(n)) {
         cl.removeAttribute(name);
         continue;
       }
@@ -1295,7 +1295,7 @@ button, input:where([type='button'], [type='reset'], [type='submit']), ::file-se
       const take = (sheet) => {
         if (!sheet || seen.has(sheet) || sheet.disabled) return;
         seen.add(sheet);
-        if (sheet.ownerNode?.closest?.('[data-copything]')) return;
+        if (sheet.ownerNode?.closest?.('[data-ui-picker]')) return;
         try {
           const mt = sheet.media?.mediaText;
           if (mt && !matchMedia(mt).matches) return;
@@ -1430,7 +1430,7 @@ button, input:where([type='button'], [type='reset'], [type='submit']), ::file-se
 
     const classFor = (idx) => {
       const info = snap.infos[idx];
-      if (!info.stateClass) info.stateClass = `ct-s${++snap.stateCounter}`;
+      if (!info.stateClass) info.stateClass = `uip-s${++snap.stateCounter}`;
       return info.stateClass;
     };
     const strip = (s) => s.replace(STATE_ALL, '').replace(PSEUDO_EL_ALL, '').trim() || '*';
@@ -1882,7 +1882,7 @@ button, input:where([type='button'], [type='reset'], [type='submit']), ::file-se
   }
 
   /**
-   * Replaces the `data-ct` markers in `holder` with generated classes and returns their CSS blocks.
+   * Replaces the `data-uip` markers in `holder` with generated classes and returns their CSS blocks.
    * With `tw` (from getTailwind) the kept Tailwind classes are added, and when `strip` is set the
    * declarations they cover are left out.
    */
@@ -1890,10 +1890,10 @@ button, input:where([type='button'], [type='reset'], [type='submit']), ::file-se
     const classByKey = new Map();
     const blocks = [];
     const infoByNode = new Map();
-    for (const node of holder.querySelectorAll('[data-ct]')) {
-      const idx = +node.getAttribute('data-ct');
+    for (const node of holder.querySelectorAll('[data-uip]')) {
+      const idx = +node.getAttribute('data-uip');
       const info = snap.infos[idx];
-      if (!measuring) node.removeAttribute('data-ct');
+      if (!measuring) node.removeAttribute('data-uip');
       infoByNode.set(node, info);
       const twInfo = tw?.byIdx.get(idx);
       const parts = partsOf(info, idx, opts, pins, measuring, strip ? twInfo?.covered : null);
@@ -1905,7 +1905,7 @@ button, input:where([type='button'], [type='reset'], [type='submit']), ::file-se
         const key = parts.map(([s, d]) => `${s}{${d.map((x) => x.join(':')).join(';')}}`).join('|');
         let cls = classByKey.get(key);
         if (!cls) {
-          cls = `ct-${classByKey.size + 1}`;
+          cls = `uip-${classByKey.size + 1}`;
           classByKey.set(key, cls);
           for (const [s, d] of parts) blocks.push(formatBlock(`.${cls}${s}`, d));
         }
@@ -1928,7 +1928,7 @@ button, input:where([type='button'], [type='reset'], [type='submit']), ::file-se
       cache.set(
         key,
         measurePins(snap, opts, fonts).catch((err) => {
-          console.warn('[Copy Thing] size check failed, keeping all sizes', err);
+          console.warn('[UI Picker] size check failed, keeping all sizes', err);
           return null;
         })
       );
@@ -1999,8 +1999,8 @@ button, input:where([type='button'], [type='reset'], [type='submit']), ::file-se
       void doc.body.offsetHeight;
       await Promise.race([doc.fonts.ready, new Promise((r) => setTimeout(r, 1500))]);
 
-      const items = Array.from(doc.querySelectorAll('[data-ct]'), (el) => {
-        const idx = +el.getAttribute('data-ct');
+      const items = Array.from(doc.querySelectorAll('[data-uip]'), (el) => {
+        const idx = +el.getAttribute('data-uip');
         return { el, idx, info: snap.infos[idx] };
       });
       const byEl = new Map(items.map((it) => [it.el, it]));
@@ -2037,7 +2037,7 @@ button, input:where([type='button'], [type='reset'], [type='submit']), ::file-se
   async function build(snap, options) {
     const opts = { ...DEFAULT_OPTIONS, ...options };
     opts.tailwind = !!(opts.tailwind && snap.meta.tailwind);
-    const fetchFn = CT.fetchResource || defaultFetch;
+    const fetchFn = UIP.fetchResource || defaultFetch;
     const fonts = opts.fonts ? await getFontFaces(snap, fetchFn) : [];
     const pins = opts.minimal ? await sizePins(snap, opts, fonts) : null;
     const stateBlocks = opts.states ? await getStateRules(snap, fetchFn) : [];
@@ -2075,7 +2075,7 @@ button, input:where([type='button'], [type='reset'], [type='submit']), ::file-se
 
     let root = holder.firstElementChild;
     if (snap.meta.tableWrap) root = wrapTable(root, snap.meta.tableWrap);
-    const body = CT.format.html(root, 2, (el) => {
+    const body = UIP.format.html(root, 2, (el) => {
       const info = infoByNode.get(el);
       if (!info) return null;
       const style = styleOf(info, opts);
@@ -2092,7 +2092,7 @@ button, input:where([type='button'], [type='reset'], [type='submit']), ::file-se
     if (cdn) {
       head += `    <script src="${TW_CDN}"></script>\n`;
       if (tw.theme.length) {
-        head += `    <style type="text/tailwindcss">\n${CT.format.indent(formatBlock('@theme', tw.theme), 3)}\n    </style>\n`;
+        head += `    <style type="text/tailwindcss">\n${UIP.format.indent(formatBlock('@theme', tw.theme), 3)}\n    </style>\n`;
       }
     }
 
@@ -2103,7 +2103,7 @@ button, input:where([type='button'], [type='reset'], [type='submit']), ::file-se
     <meta name="viewport" content="width=device-width, initial-scale=1">
     <title>${escapeHtml(snap.meta.name || 'Component')}</title>
 ${head}    <style>
-${CT.format.indent(css, 3)}
+${UIP.format.indent(css, 3)}
     </style>
   </head>
   <body>
@@ -2114,6 +2114,6 @@ ${body}
     return { html, classCount };
   }
 
-  CT.describe = describe;
-  CT.serializer = { capture, build, DEFAULT_OPTIONS };
+  UIP.describe = describe;
+  UIP.serializer = { capture, build, DEFAULT_OPTIONS };
 })();

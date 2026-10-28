@@ -1,6 +1,6 @@
 (() => {
-  const CT = (globalThis.CopyThing = globalThis.CopyThing || {});
-  if (CT.util) return;
+  const UIP = (globalThis.UiPicker = globalThis.UiPicker || {});
+  if (UIP.util) return;
 
   function h(tag, props, ...children) {
     const el = document.createElement(tag);
@@ -78,5 +78,5 @@
     setTimeout(() => URL.revokeObjectURL(url), 10000);
   }
 
-  CT.util = { h, slug, formatBytes, hostOf, uid, copyText, downloadText };
+  UIP.util = { h, slug, formatBytes, hostOf, uid, copyText, downloadText };
 })();

@@ -1,7 +1,7 @@
 (() => {
   'use strict';
-  const CT = (window.CopyThing = window.CopyThing || {});
-  if (CT.format) return;
+  const UIP = (window.UiPicker = window.UiPicker || {});
+  if (UIP.format) return;
 
   const INDENT = '  ';
   const MAX_WIDTH = 100;
@@ -222,5 +222,5 @@
     return [pad(level) + lines[0], ...lines.slice(1)].join('\n');
   }
 
-  CT.format = { html, indent };
+  UIP.format = { html, indent };
 })();

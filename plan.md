@@ -1,4 +1,4 @@
-# Copy Thing – Chrome Extension Plan
+# UI Picker – Chrome Extension Plan
 
 Minimal Chrome extension (Manifest V3, vanilla JS, no build step) that lets you pick any element on a page, copies its HTML structure plus all the CSS needed to render it, and outputs a **standalone HTML page** that shows the component exactly as it looked — no external CSS, no extra wrappers.
 
@@ -36,7 +36,7 @@ Minimal Chrome extension (Manifest V3, vanilla JS, no build step) that lets you 
 ## 3. File Structure
 
 ```
-copy-thing/
+ui-picker/
 ├── manifest.json
 ├── background.js          # service worker: toolbar click, shortcut, message routing
 ├── content/
@@ -97,7 +97,7 @@ Input: selected element + options object. Output: full HTML string.
 3. **Read computed styles** for each original node via `getComputedStyle`.
 4. **Diff against defaults**: for each tag, create a reference element of the same tag in a clean hidden iframe and read its default computed style. Only keep properties whose values differ → small CSS.
 5. **Inherited properties**: on the root element, always emit inheritable properties (`font-*`, `color`, `line-height`, `letter-spacing`, `text-*`, `white-space`, `direction`, `visibility`, `cursor`) because the page's ancestors provide them. On descendants, drop inheritable properties equal to the parent's value.
-6. **Deduplicate**: hash each element's style declaration string → map to a class name (`ct-1`, `ct-2`, …). Identical styles share a class.
+6. **Deduplicate**: hash each element's style declaration string → map to a class name (`uip-1`, `uip-2`, …). Identical styles share a class.
 7. **Root fixes**: on the root element, reset `margin` to `0` and keep its exact `width`/`height` (from `getBoundingClientRect`) so layout depending on parent width still matches; remove `position: absolute/fixed` offsets (convert to `relative`, keep size).
 8. **Form state**: copy live `value`, `checked`, `selected` into attributes.
 9. **URLs**: rewrite relative `src`, `href`, `srcset`, `url(...)` in CSS to absolute URLs.
@@ -112,8 +112,8 @@ Input: selected element + options object. Output: full HTML string.
 <style>
   html,body{margin:0}
   body{padding:16px;background:<page color>}   /* background only when "Page background" is on */
-  .ct-1{...}
-  .ct-2{...}
+  .uip-1{...}
+  .uip-2{...}
 </style>
 </head>
 <body>
@@ -133,7 +133,7 @@ Each checkbox maps to an option flag; changing one re-runs the serializer (debou
 | Checkbox | Default | What it does |
 |---|---|---|
 | Minimal CSS (v2) | On | Keeps only declarations that affect the look, merged into shorthands (`margin`, `padding`, `border`, `border-radius`, `inset`, `gap`, `overflow`, `flex`, `text-decoration`, `outline`); drops transitions, no-op shadows, identity transforms, `min-*: auto`. Widths/heights are removed, the output is rendered in a hidden frame, and sizes are pinned back only on elements that come out a different size than on the page |
-| Pseudo-elements (`::before` / `::after`) | On | Reads `getComputedStyle(el, '::before')`; if `content` ≠ `none`, emits `.ct-N::before{...}` |
+| Pseudo-elements (`::before` / `::after`) | On | Reads `getComputedStyle(el, '::before')`; if `content` ≠ `none`, emits `.uip-N::before{...}` |
 | Embed images (base64) | Off | Converts `<img>`, `srcset` and CSS `background-image` URLs to data URIs (fetched via background worker to bypass CORS) |
 | Web fonts | On | Collects `@font-face` rules for font families actually used; optionally base64 the font files when "Embed images" is on |
 | Hover / focus states | Off | Scans stylesheets (including nested CSS) for `:hover`/`:focus`/`:active` rules whose base selector matches captured elements; re-emits them targeting generated classes. Cross-origin sheets are re-fetched through the background worker |

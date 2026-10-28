@@ -12,29 +12,29 @@ const LIBRARY_URL = chrome.runtime.getURL('library/library.html');
 
 chrome.runtime.onInstalled.addListener(() => {
   chrome.contextMenus.create({
-    id: 'ct-library',
+    id: 'uip-library',
     title: 'Open component library',
     contexts: ['action'],
   });
 });
 
 chrome.contextMenus.onClicked.addListener((info) => {
-  if (info.menuItemId === 'ct-library') openLibrary();
+  if (info.menuItemId === 'uip-library') openLibrary();
 });
 
 chrome.action.onClicked.addListener((tab) => startOnTab(tab));
 
 chrome.runtime.onMessage.addListener((msg, sender, sendResponse) => {
-  if (msg?.type === 'ct-fetch') {
+  if (msg?.type === 'uip-fetch') {
     fetchResource(msg.url, msg.as).then(sendResponse, (err) =>
       sendResponse({ ok: false, error: String(err?.message || err) })
     );
     return true;
   }
-  if (msg?.type === 'ct-open-library') {
+  if (msg?.type === 'uip-open-library') {
     openLibrary();
   }
-  if (msg?.type === 'ct-open-source') {
+  if (msg?.type === 'uip-open-source') {
     openSource(msg.url, msg.scroll);
   }
   return false;
@@ -46,7 +46,7 @@ async function startOnTab(tab) {
     await chrome.scripting.executeScript({ target: { tabId: tab.id }, files: SCRIPTS });
     await chrome.scripting.executeScript({
       target: { tabId: tab.id },
-      func: () => window.CopyThing.start(),
+      func: () => window.UiPicker.start(),
     });
   } catch (err) {
     flagUnsupported(tab.id);
@@ -56,10 +56,10 @@ async function startOnTab(tab) {
 function flagUnsupported(tabId) {
   chrome.action.setBadgeBackgroundColor({ tabId, color: '#dc2626' });
   chrome.action.setBadgeText({ tabId, text: '!' });
-  chrome.action.setTitle({ tabId, title: "Copy Thing can't run on this page" });
+  chrome.action.setTitle({ tabId, title: "UI Picker can't run on this page" });
   setTimeout(() => {
     chrome.action.setBadgeText({ tabId, text: '' });
-    chrome.action.setTitle({ tabId, title: 'Copy Thing: pick an element (Alt+Shift+C)' });
+    chrome.action.setTitle({ tabId, title: 'UI Picker: pick an element (Alt+Shift+C)' });
   }, 4000);
 }
 

@@ -29,7 +29,7 @@
     stage.style.width = `${width * scale}px`;
     stage.style.height = `${height * scale}px`;
     if (window.parent !== window) {
-      window.parent.postMessage({ type: 'ct-rendered', width, height, scale }, '*');
+      window.parent.postMessage({ type: 'uip-rendered', width, height, scale }, '*');
     }
   }
 
@@ -40,7 +40,7 @@
   window.addEventListener('resize', fit);
 
   window.addEventListener('message', (e) => {
-    if (e.source !== window.parent || e.data?.type !== 'ct-render') return;
+    if (e.source !== window.parent || e.data?.type !== 'uip-render') return;
     setBg(e.data.bg);
     render(String(e.data.html || ''), e.data.width, e.data.height);
   });
@@ -56,7 +56,7 @@
   setBg(params.get('bg'));
   const id = params.get('id');
   if (id && parentIsExtension()) {
-    window.CopyThing.storage.get(id).then((comp) => {
+    window.UiPicker.storage.get(id).then((comp) => {
       if (comp) render(comp.previewHtml || comp.html, comp.width, comp.height);
     });
   }

@@ -1,6 +1,6 @@
 (() => {
-  const CT = window.CopyThing;
-  const { h, slug, formatBytes, hostOf, copyText, downloadText } = CT.util;
+  const UIP = window.UiPicker;
+  const { h, slug, formatBytes, hostOf, copyText, downloadText } = UIP.util;
   const PREVIEW = '../preview/preview.html';
 
   const grid = document.getElementById('grid');
@@ -64,7 +64,7 @@
   }
 
   function openSource(comp) {
-    chrome.runtime.sendMessage({ type: 'ct-open-source', url: comp.sourceUrl, scroll: comp.sourceScroll });
+    chrome.runtime.sendMessage({ type: 'uip-open-source', url: comp.sourceUrl, scroll: comp.sourceScroll });
   }
 
   function sourceTitle(comp) {
@@ -74,7 +74,7 @@
 
   async function remove(comp) {
     if (!confirm(`Delete "${comp.name}"?`)) return;
-    await CT.storage.remove(comp.id);
+    await UIP.storage.remove(comp.id);
     showToast('Deleted');
   }
 
@@ -132,7 +132,7 @@
   }
 
   async function load() {
-    components = await CT.storage.list();
+    components = await UIP.storage.list();
     const ids = new Set(components.map((c) => c.id));
     for (const id of textCache.keys()) if (!ids.has(id)) textCache.delete(id);
     render();
@@ -148,7 +148,7 @@
     modalFrame.hidden = which !== 'preview';
     modalCode.hidden = which !== 'code';
     if (which === 'code' && current && codeFor !== current) {
-      CT.highlight.render(modalCode, current.html);
+      UIP.highlight.render(modalCode, current.html);
       codeFor = current;
     }
   }
@@ -182,7 +182,7 @@
 
   search.addEventListener('input', render);
   chrome.storage.onChanged.addListener((changes, area) => {
-    if (area === 'local' && changes[CT.storage.KEY]) load();
+    if (area === 'local' && changes[UIP.storage.KEY]) load();
   });
 
   load();

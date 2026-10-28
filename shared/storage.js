@@ -1,6 +1,6 @@
 (() => {
-  const CT = (globalThis.CopyThing = globalThis.CopyThing || {});
-  if (CT.storage) return;
+  const UIP = (globalThis.UiPicker = globalThis.UiPicker || {});
+  if (UIP.storage) return;
 
   const KEY = 'components';
   const OPTIONS_KEY = 'options';
@@ -11,7 +11,7 @@
     return result[KEY] || {};
   }
 
-  CT.storage = {
+  UIP.storage = {
     KEY,
 
     async list() {
@@ -24,7 +24,7 @@
 
     async save(component) {
       const all = await readAll();
-      const id = component.id || CT.util.uid();
+      const id = component.id || UIP.util.uid();
       all[id] = { ...component, id, createdAt: component.createdAt || Date.now() };
       await area().set({ [KEY]: all });
       return all[id];

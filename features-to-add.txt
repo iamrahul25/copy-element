@@ -5,9 +5,7 @@ What to add next:
   Add a checkbox for copying the javascript and live we can se the component moving or animation or something. 
 
   https://www.getlayers.ai/ -> Unable to copy the button border moving it is because of JS may be - or find the cause
-
-- 
-
+  (Do it later -> Tried once but not good as expected)
 
 Added already: 
 --------------
@@ -36,5 +34,7 @@ For some empty values like this: (remove this type of this things)
    So, that later we can open the website again.
    -> Saves the page URL and scroll position from when the element was picked. In the library, click the
       site name on a card or "Open page" in the full preview to reopen the page scrolled to that spot.
+
+
 
 
