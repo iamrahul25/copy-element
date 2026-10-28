@@ -5,6 +5,8 @@
   const PAD = 8;
 
   let hint = { width: 0, height: 0 };
+  // 0 scales the component to fit the frame.
+  let zoom = 0;
 
   function setBg(bg) {
     document.body.className = `bg-${bg || 'checker'}`;
@@ -24,12 +26,13 @@
     const height = Math.ceil(Math.max(doc.body.getBoundingClientRect().height, doc.body.scrollHeight));
     frame.style.width = `${width}px`;
     frame.style.height = `${height}px`;
-    const scale = Math.min(1, (innerWidth - PAD * 2) / width, (innerHeight - PAD * 2) / height);
+    const scale = zoom || Math.min(1, (innerWidth - PAD * 2) / width, (innerHeight - PAD * 2) / height);
+    document.documentElement.classList.toggle('zoomed', !!zoom);
     frame.style.transform = `scale(${scale})`;
     stage.style.width = `${width * scale}px`;
     stage.style.height = `${height * scale}px`;
     if (window.parent !== window) {
-      window.parent.postMessage({ type: 'uip-rendered', width, height, scale }, '*');
+      window.parent.postMessage({ type: 'uip-rendered', width, height, scale, fit: !zoom }, '*');
     }
   }
 
@@ -40,9 +43,15 @@
   window.addEventListener('resize', fit);
 
   window.addEventListener('message', (e) => {
-    if (e.source !== window.parent || e.data?.type !== 'uip-render') return;
-    setBg(e.data.bg);
-    render(String(e.data.html || ''), e.data.width, e.data.height);
+    if (e.source !== window.parent) return;
+    if (e.data?.type === 'uip-zoom') {
+      zoom = Number(e.data.zoom) || 0;
+      fit();
+    } else if (e.data?.type === 'uip-render') {
+      zoom = Number(e.data.zoom) || 0;
+      setBg(e.data.bg);
+      render(String(e.data.html || ''), e.data.width, e.data.height);
+    }
   });
 
   function parentIsExtension() {

@@ -9,9 +9,9 @@
 </head>
 <body>
 <header class="top">
-  <div class="brand">
-    <img src="../icons/icon-48.png" alt="" width="28" height="28">
-    <h1>Component Library</h1>
+  <div class="title">
+    <strong>UI Picker</strong>
+    <span class="sub">Component Library</span>
     <span id="count" class="count"></span>
   </div>
   <input id="search" class="search" type="search" placeholder="Search by name, site or text…" autocomplete="off">
@@ -30,31 +30,32 @@
 </main>
 
 <dialog id="modal" class="modal">
-  <div class="modal-head">
-    <div class="modal-title">
-      <h2 id="modal-name"></h2>
-      <p id="modal-meta" class="meta"></p>
+  <header class="head">
+    <div class="title">
+      <strong id="modal-name"></strong>
+      <span id="modal-meta" class="sub"></span>
     </div>
-    <div class="modal-actions">
-      <button id="modal-copy" class="btn primary">Copy HTML</button>
-      <button id="modal-download" class="btn secondary">Download .html</button>
-      <button id="modal-open" class="btn secondary">Open page</button>
-      <button id="modal-close" class="btn ghost" aria-label="Close">✕</button>
-    </div>
-  </div>
-  <div class="modal-tabs">
+    <button id="modal-open" class="btn ghost">Open page</button>
+    <button id="modal-close" class="btn ghost icon" aria-label="Close" title="Close">✕</button>
+  </header>
+  <div class="toolbar">
     <button class="tab active" data-tab="preview">Preview</button>
     <button class="tab" data-tab="code">HTML</button>
     <span class="spacer"></span>
+    <span id="modal-scale" class="scale"></span>
     <select id="modal-bg" class="bg" title="Preview background">
       <option value="checker">Checker</option>
       <option value="white">White</option>
       <option value="dark">Dark</option>
     </select>
   </div>
-  <div class="modal-body">
+  <div class="view">
     <iframe id="modal-frame" class="modal-frame" title="Component preview"></iframe>
     <pre id="modal-code" class="code" hidden></pre>
+  </div>
+  <div class="modal-actions">
+    <button id="modal-copy" class="btn primary">Copy HTML</button>
+    <button id="modal-download" class="btn secondary">Download .html</button>
   </div>
 </dialog>
 

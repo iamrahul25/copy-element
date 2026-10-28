@@ -13,6 +13,7 @@
   const modalFrame = document.getElementById('modal-frame');
   const modalCode = document.getElementById('modal-code');
   const modalBg = document.getElementById('modal-bg');
+  const modalScale = document.getElementById('modal-scale');
 
   let components = [];
   let current = null;
@@ -114,9 +115,8 @@
       h(
         'div',
         { class: 'actions' },
-        h('button', { class: 'btn primary', text: 'Copy', onclick: () => copy(comp) }),
-        h('button', { class: 'btn secondary', text: 'Download', onclick: () => download(comp) }),
-        h('span', { class: 'spacer' }),
+        h('button', { class: 'btn primary', text: 'Copy HTML', onclick: () => copy(comp) }),
+        h('button', { class: 'btn secondary', text: 'Download .html', onclick: () => download(comp) }),
         h('button', { class: 'btn danger', text: 'Delete', onclick: () => remove(comp) })
       )
     );
@@ -177,7 +177,13 @@
     current = null;
     codeFor = null;
     modalCode.replaceChildren();
+    modalScale.textContent = '';
     modalFrame.removeAttribute('src');
+  });
+  window.addEventListener('message', (e) => {
+    if (e.source !== modalFrame.contentWindow || e.data?.type !== 'uip-rendered') return;
+    const pct = Math.round(e.data.scale * 100);
+    modalScale.textContent = pct < 100 ? `${pct}%` : '';
   });
 
   search.addEventListener('input', render);

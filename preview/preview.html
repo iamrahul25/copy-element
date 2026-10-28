@@ -13,8 +13,9 @@
   }
   body {
     display: flex;
-    align-items: center;
-    justify-content: center;
+  }
+  html.zoomed body {
+    overflow: auto;
   }
   body.bg-checker {
     background: repeating-conic-gradient(#eceef3 0% 25%, #ffffff 0% 50%) 0 0 / 16px 16px;
@@ -27,6 +28,7 @@
   }
   #stage {
     flex: none;
+    margin: auto;
     position: relative;
     overflow: hidden;
   }
