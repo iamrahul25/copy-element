@@ -1,7 +1,10 @@
 (() => {
   const UIP = window.UiPicker;
   const { h, slug, formatBytes, hostOf, copyText, downloadText } = UIP.util;
+  const { icon } = UIP;
   const PREVIEW = '../preview/preview.html';
+
+  for (const el of document.querySelectorAll('[data-icon]')) el.prepend(icon(el.dataset.icon));
 
   const grid = document.getElementById('grid');
   const empty = document.getElementById('empty');
@@ -48,21 +51,33 @@
     return parts.filter(Boolean).join(' · ');
   }
 
-  function showToast(text) {
-    toast.textContent = text;
-    toast.hidden = false;
+  function showToast(text, ok = true) {
+    toast.replaceChildren(icon(ok ? 'check' : 'alert'), h('span', { text }));
+    toast.classList.toggle('error', !ok);
+    // Re-showing puts the popover back on top of the top layer, above an open dialog.
+    if (toast.matches(':popover-open')) toast.hidePopover();
+    toast.showPopover();
     clearTimeout(showToast.timer);
-    showToast.timer = setTimeout(() => (toast.hidden = true), 1800);
+    showToast.timer = setTimeout(() => toast.hidePopover(), 3000);
   }
 
   async function copy(comp) {
     const ok = await copyText(comp.html);
-    showToast(ok ? 'Copied HTML to clipboard' : 'Copy failed');
+    showToast(ok ? 'Copied HTML to clipboard' : 'Copy failed. Use Download instead.', ok);
   }
 
   function download(comp) {
     downloadText(`${slug(comp.name)}.html`, comp.html);
+    showToast('Download started');
   }
+
+  const button = (text, cls, iconName, onclick, label) =>
+    h(
+      'button',
+      { class: `btn ${cls}`, onclick, title: label, 'aria-label': text ? null : label },
+      icon(iconName),
+      text && h('span', { text })
+    );
 
   function openSource(comp) {
     chrome.runtime.sendMessage({ type: 'uip-open-source', url: comp.sourceUrl, scroll: comp.sourceScroll });
@@ -86,13 +101,13 @@
       { class: 'card' },
       h(
         'button',
-        { class: 'thumb', title: 'Open preview', onclick: () => openModal(comp) },
+        { class: 'thumb', title: 'Open preview', 'aria-label': `Open preview of ${comp.name}`, onclick: () => openModal(comp) },
         h('iframe', { src, loading: 'lazy', tabindex: '-1', title: comp.name })
       ),
       h(
         'div',
         { class: 'info' },
-        h('h3', { text: comp.name, title: comp.name }),
+        h('h2', { text: comp.name, title: comp.name }),
         h(
           'p',
           { class: 'meta' },
@@ -115,9 +130,9 @@
       h(
         'div',
         { class: 'actions' },
-        h('button', { class: 'btn primary', text: 'Copy HTML', onclick: () => copy(comp) }),
-        h('button', { class: 'btn secondary', text: 'Download .html', onclick: () => download(comp) }),
-        h('button', { class: 'btn danger', text: 'Delete', onclick: () => remove(comp) })
+        button('Copy HTML', 'primary', 'copy', () => copy(comp)),
+        button('Download', 'secondary', 'download', () => download(comp), 'Download .html'),
+        button('', 'danger icon', 'trash', () => remove(comp), `Delete "${comp.name}"`)
       )
     );
   }
@@ -144,7 +159,10 @@
   let codeFor = null;
 
   function setTab(which) {
-    for (const t of modal.querySelectorAll('.tab')) t.classList.toggle('active', t.dataset.tab === which);
+    for (const t of modal.querySelectorAll('.tab')) {
+      t.classList.toggle('active', t.dataset.tab === which);
+      t.setAttribute('aria-selected', String(t.dataset.tab === which));
+    }
     modalFrame.hidden = which !== 'preview';
     modalCode.hidden = which !== 'code';
     if (which === 'code' && current && codeFor !== current) {

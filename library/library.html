@@ -3,67 +3,83 @@
 <head>
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1">
+<meta name="color-scheme" content="light dark">
 <title>UI Picker – Component Library</title>
 <link rel="icon" href="../icons/icon-48.png">
 <link rel="stylesheet" href="library.css">
 </head>
 <body>
 <header class="top">
-  <div class="title">
-    <strong>UI Picker</strong>
-    <span class="sub">Component Library</span>
+  <div class="brand">
+    <span class="logo" data-icon="logo"></span>
+    <div class="title">
+      <h1>UI Picker</h1>
+      <span class="sub">Component Library</span>
+    </div>
     <span id="count" class="count"></span>
   </div>
-  <input id="search" class="search" type="search" placeholder="Search by name, site or text…" autocomplete="off">
+  <label class="search-field">
+    <span class="search-ico" data-icon="search"></span>
+    <input id="search" class="search" type="search" placeholder="Search by name, site or text…" aria-label="Search components" autocomplete="off">
+  </label>
 </header>
 
 <main>
   <div id="grid" class="grid"></div>
   <div id="empty" class="empty" hidden>
+    <span class="empty-ico" data-icon="layers"></span>
     <h2>No components yet</h2>
     <p>Click the UI Picker icon (or press <kbd>Alt</kbd>+<kbd>Shift</kbd>+<kbd>C</kbd>) on any page, pick an element, then hit <strong>Save to library</strong>.</p>
   </div>
   <div id="no-results" class="empty" hidden>
+    <span class="empty-ico" data-icon="search"></span>
     <h2>No matches</h2>
     <p>Try a different search.</p>
   </div>
 </main>
 
-<dialog id="modal" class="modal">
+<dialog id="modal" class="modal" aria-labelledby="modal-name">
   <header class="head">
     <div class="title">
-      <strong id="modal-name"></strong>
+      <h2 id="modal-name"></h2>
       <span id="modal-meta" class="sub"></span>
     </div>
-    <button id="modal-open" class="btn ghost">Open page</button>
-    <button id="modal-close" class="btn ghost icon" aria-label="Close" title="Close">✕</button>
+    <button id="modal-open" class="btn ghost" data-icon="external">Open page</button>
+    <button id="modal-close" class="btn ghost icon" aria-label="Close" title="Close (Esc)" data-icon="x"></button>
   </header>
   <div class="toolbar">
-    <button class="tab active" data-tab="preview">Preview</button>
-    <button class="tab" data-tab="code">HTML</button>
+    <div class="tabs" role="tablist" aria-label="Output view">
+      <button class="tab active" role="tab" aria-selected="true" data-tab="preview">Preview</button>
+      <button class="tab" role="tab" aria-selected="false" data-tab="code">HTML</button>
+    </div>
     <span class="spacer"></span>
     <span id="modal-scale" class="scale"></span>
-    <select id="modal-bg" class="bg" title="Preview background">
-      <option value="checker">Checker</option>
-      <option value="white">White</option>
-      <option value="dark">Dark</option>
-    </select>
+    <label class="select" title="Preview background (not part of the output)">
+      <span data-icon="checker"></span>
+      <select id="modal-bg" aria-label="Preview background">
+        <option value="checker">Checker</option>
+        <option value="white">White</option>
+        <option value="dark">Dark</option>
+      </select>
+      <span class="chevron" data-icon="chevron"></span>
+    </label>
   </div>
   <div class="view">
     <iframe id="modal-frame" class="modal-frame" title="Component preview"></iframe>
     <pre id="modal-code" class="code" hidden></pre>
   </div>
   <div class="modal-actions">
-    <button id="modal-copy" class="btn primary">Copy HTML</button>
-    <button id="modal-download" class="btn secondary">Download .html</button>
+    <button id="modal-copy" class="btn primary" data-icon="copy">Copy HTML</button>
+    <button id="modal-download" class="btn secondary" data-icon="download">Download .html</button>
   </div>
 </dialog>
 
-<div id="toast" class="toast" hidden></div>
+<div id="toast" class="toast" role="status" aria-live="polite" popover="manual"></div>
 
 <script src="../shared/util.js"></script>
 <script src="../shared/storage.js"></script>
 <script src="../shared/highlight.js"></script>
+<script src="../shared/icons.js"></script>
 <script src="library.js"></script>
 </body>
 </html>
