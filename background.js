@@ -48,6 +48,9 @@ chrome.runtime.onMessage.addListener((msg, sender, sendResponse) => {
   if (msg?.type === 'uip-open-source') {
     openSource(msg.url, msg.scroll);
   }
+  if (msg?.type === 'uip-open-full') {
+    openFull(msg, sender.tab);
+  }
   return false;
 });
 
@@ -82,6 +85,25 @@ async function openLibrary() {
   } else {
     await chrome.tabs.create({ url: LIBRARY_URL });
   }
+}
+
+const VIEW_PREFIX = 'view:';
+const VIEW_TTL = 24 * 60 * 60 * 1000;
+
+// Shows the panel's current component full size in a new tab next to the page. It is kept in
+// storage, not the URL, because it can be megabytes; leftovers expire after a day.
+async function openFull({ name, html, previewHtml, width, height }, tab) {
+  const store = chrome.storage.local;
+  const keys = store.getKeys ? await store.getKeys() : Object.keys(await store.get(null));
+  const views = await store.get(keys.filter((k) => k.startsWith(VIEW_PREFIX)));
+  const stale = Object.keys(views).filter((k) => Date.now() - (views[k]?.createdAt || 0) > VIEW_TTL);
+  if (stale.length) await store.remove(stale);
+  const key = `${VIEW_PREFIX}${Date.now().toString(36)}${Math.random().toString(36).slice(2, 8)}`;
+  await chrome.storage.local.set({ [key]: { name, html, previewHtml, width, height, createdAt: Date.now() } });
+  const url = chrome.runtime.getURL(`preview/preview.html?view=${encodeURIComponent(key)}`);
+  await chrome.tabs.create(
+    tab ? { url, index: tab.index + 1, openerTabId: tab.id, windowId: tab.windowId } : { url }
+  );
 }
 
 // Opens the page a component was copied from, scrolled to where it was when it was picked.

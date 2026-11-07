@@ -37,6 +37,7 @@
     chevron: ['m6 9 6 6 6-6'],
     minus: ['M5 12h14'],
     plus: ['M5 12h14', 'M12 5v14'],
+    maximize: [{ d: 'M17 7v7l-7-7zM7 17v-7l7 7z', fill: true }],
     check: ['M20 6 9 17l-5-5'],
     bookmark: ['m19 21-7-4-7 4V5a2 2 0 0 1 2-2h10a2 2 0 0 1 2 2z'],
     copy: [

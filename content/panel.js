@@ -5,7 +5,7 @@
 
   const { h, slug, formatBytes, copyText, downloadText, loadSheets } = UIP.util;
   const EXT_ORIGIN = new URL(chrome.runtime.getURL('')).origin;
-  const PREVIEW_URL = chrome.runtime.getURL('preview/preview.html');
+  const PREVIEW_URL = chrome.runtime.getURL('preview/preview.html?interactive');
   const LARGE_NODES = 2000;
   const LARGE_BYTES = 5 * 1024 * 1024;
 
@@ -40,6 +40,7 @@
     ['dark', 'Dark', 'square-fill'],
   ];
   const ZOOMS = [0.1, 0.25, 0.33, 0.5, 0.67, 0.75, 1, 1.25, 1.5, 2];
+  const TAGLINE = 'Pick any element, get clean HTML and CSS.';
 
   const icon = UIP.icon;
 
@@ -120,7 +121,11 @@
 
     /* ---------- elements ---------- */
     const status = h('div', { class: 'status', role: 'status', 'aria-live': 'polite' });
-    const frame = h('iframe', { class: 'preview', src: PREVIEW_URL, title: 'Component preview' });
+    const frame = h('iframe', {
+      class: 'preview',
+      src: PREVIEW_URL,
+      title: 'Component preview. Scroll to zoom, drag to move around when zoomed in',
+    });
     const code = h('pre', { class: 'code', hidden: true });
 
     const btn = (text, cls, onclick, title, iconName) =>
@@ -262,6 +267,19 @@
       };
     };
 
+    // Copies `value` and says so in the row's second line for a moment.
+    const copyFromRow = async (row, value, meta) => {
+      const label = row.querySelector('.token-meta');
+      clearTimeout(row.flashTimer);
+      const ok = await copyText(value, shadow);
+      label.textContent = ok ? `Copied ${value}` : 'Copy failed';
+      row.classList.toggle('done', ok);
+      row.flashTimer = setTimeout(() => {
+        label.textContent = meta;
+        row.classList.remove('done');
+      }, 1400);
+    };
+
     const colorList = tokenList(tokens.colors, 'No colors found in this element.', (c) => {
       const value = c.alpha < 1 ? `${c.hex}${Math.round(c.alpha * 255).toString(16).padStart(2, '0')}` : c.hex;
       const tile = h('span', { class: 'swatch' });
@@ -271,17 +289,7 @@
       const row = tokenRow(tile, h('span', { class: 'token-name mono', text: value }), meta, c.pct, {
         title: `Copy ${value}`,
         ...hoverMark({ color: { hex: c.hex, alpha: c.alpha } }),
-        onclick: async () => {
-          const label = row.querySelector('.token-meta');
-          clearTimeout(row.flashTimer);
-          const ok = await copyText(value, shadow);
-          label.textContent = ok ? `Copied ${value}` : 'Copy failed';
-          row.classList.toggle('done', ok);
-          row.flashTimer = setTimeout(() => {
-            label.textContent = meta;
-            row.classList.remove('done');
-          }, 1400);
-        },
+        onclick: () => copyFromRow(row, value, meta),
       });
       return row;
     });
@@ -303,11 +311,15 @@
       const notes = [f.weights.join(' · '), sizeRange(f.sizes)];
       if (f.declared) notes.push(`fallback for ${f.declared}`);
       else if (f.generic) notes.push('browser default');
-      const row = tokenRow(tile, name, notes.join(' · '), f.pct, {
-        title: `Highlight text set in ${f.name} in the preview`,
+      const meta = notes.join(' · ');
+      const row = tokenRow(tile, name, meta, f.pct, {
+        title: `Copy ${f.name} and highlight its text in the preview`,
         'aria-pressed': 'false',
         ...hoverMark({ stacks: f.stacks }),
-        onclick: () => markFont(f),
+        onclick: () => {
+          markFont(f);
+          copyFromRow(row, f.name, meta);
+        },
       });
       fontRows.set(f, row);
       return row;
@@ -315,11 +327,8 @@
     fontList.hidden = true;
 
     const TOKEN_HINTS = {
-      colors:
-        tokens.source === 'pixels'
-          ? 'Share of the pixels on screen. Hover a color to see where it is used, click to copy it.'
-          : 'Estimated share of the area. Hover a color to see where it is used, click to copy it.',
-      fonts: 'Share of the text. Hover a font to see its text in the preview, click to keep it marked.',
+      colors: 'Hover to find, click to copy.',
+      fonts: 'Hover to find, click to copy and mark.',
     };
     const tokenHint = h('p', { text: TOKEN_HINTS.colors });
     const tokenTabs = segmented(
@@ -482,7 +491,32 @@
       'Download .html',
       'download'
     );
-    const outputButtons = [copyBtn, downloadBtn, bookmarkBtn, confirmSaveBtn];
+    /* window controls */
+    const light = (cls, title, iconName, onclick) =>
+      h('button', { type: 'button', class: `light ${cls}`, title, 'aria-label': title, onclick }, icon(iconName));
+    const minimizeBtn = light('minimize', 'Minimize', 'minus', () => setMinimized(!panel.classList.contains('minimized')));
+    const maximizeBtn = light('maximize', 'Open in a new tab', 'maximize', () => {
+      if (!state.html) return;
+      chrome.runtime.sendMessage({
+        type: 'uip-open-full',
+        name: nameInput.value.trim() || snap.meta.name || 'Component',
+        html: state.html,
+        previewHtml: state.previewHtml,
+        width: snap.meta.width,
+        height: snap.meta.height,
+      });
+    });
+    const lights = h('div', { class: 'lights' }, maximizeBtn, minimizeBtn, light('close', 'Close (Esc)', 'x', close));
+
+    function setMinimized(on) {
+      pinTopLeft(host);
+      panel.classList.toggle('minimized', on);
+      minimizeBtn.title = on ? 'Restore' : 'Minimize';
+      minimizeBtn.setAttribute('aria-label', minimizeBtn.title);
+      requestAnimationFrame(() => keepInView(host));
+    }
+
+    const outputButtons = [copyBtn, downloadBtn, bookmarkBtn, confirmSaveBtn, maximizeBtn];
     const setOutputReady = (ready) => {
       for (const b of outputButtons) b.disabled = !ready;
     };
@@ -509,12 +543,12 @@
         'div',
         { class: 'title' },
         titleEl,
-        h('span', { class: 'tagline', text: 'Pick any element, get clean HTML and CSS.' })
+        h('span', { class: 'tagline', text: TAGLINE, title: TAGLINE })
       ),
       btn('Library', 'outline', () => chrome.runtime.sendMessage({ type: 'uip-open-library' }), 'Open component library', 'folder'),
       themeBtn,
       settings.el,
-      btn('', 'ghost icon', close, 'Close (Esc)', 'x')
+      lights
     );
 
     const panel = h(
@@ -535,29 +569,33 @@
         )
       ),
       h(
-        'section',
-        { class: 'viewer' },
-        h('div', { class: 'toolbar' }, tabs, h('span', { class: 'spacer' }), previewTools),
+        'div',
+        { class: 'scroll' },
         h(
-          'div',
-          { class: 'view' },
-          frame,
-          code,
-          btn('Re-pick', 'outline sm repick', () => UIP.start(), 'Pick another element', 'refresh')
-        )
-      ),
-      h('section', { class: 'options' }, disclosure, advanced),
-      h(
-        'section',
-        { class: 'tokens' },
-        h(
-          'div',
-          { class: 'option-row' },
-          h('div', { class: 'option-text' }, h('h2', null, icon('palette'), h('span', { text: 'Extracted styles' })), tokenHint),
-          tokenTabs
+          'section',
+          { class: 'viewer' },
+          h('div', { class: 'toolbar' }, tabs, h('span', { class: 'spacer' }), previewTools),
+          h(
+            'div',
+            { class: 'view' },
+            frame,
+            code,
+            btn('Re-pick', 'outline sm repick', () => UIP.start(), 'Pick another element', 'refresh')
+          )
         ),
-        colorList,
-        fontList
+        h('section', { class: 'options' }, disclosure, advanced),
+        h(
+          'section',
+          { class: 'tokens' },
+          h(
+            'div',
+            { class: 'option-row' },
+            h('div', { class: 'option-text' }, h('h2', null, icon('palette'), h('span', { text: 'Extracted styles' })), tokenHint),
+            tokenTabs
+          ),
+          colorList,
+          fontList
+        )
       ),
       h('footer', { class: 'foot' }, saveRow, h('div', { class: 'actions' }, copyBtn, downloadBtn, bookmarkBtn), status)
     );
@@ -657,6 +695,7 @@
       if (e.source !== frame.contentWindow || e.origin !== EXT_ORIGIN) return;
       if (e.data?.type !== 'uip-rendered') return;
       state.scale = e.data.scale;
+      state.zoom = e.data.fit ? 'fit' : String(e.data.scale);
       zoomValue.querySelector('span').textContent = `${Math.round(e.data.scale * 100)}%`;
       zoomValue.title = e.data.fit ? 'Fitted to the preview' : 'Fit to preview';
       zoomOut.disabled = state.scale <= ZOOMS[0] + 0.001;
@@ -701,6 +740,15 @@
       handle.addEventListener('pointermove', move);
       handle.addEventListener('pointerup', up);
     });
+  }
+
+  // Anchored at the bottom, the header would drop down when the panel shrinks.
+  function pinTopLeft(host) {
+    const rect = host.getBoundingClientRect();
+    host.style.setProperty('left', `${rect.left}px`, 'important');
+    host.style.setProperty('top', `${rect.top}px`, 'important');
+    host.style.setProperty('right', 'auto', 'important');
+    host.style.setProperty('bottom', 'auto', 'important');
   }
 
   // After a drag the panel is placed by its top left corner, so growing it can push it off screen.

@@ -18,6 +18,14 @@
   html.zoomed body {
     overflow: auto;
   }
+  html.pannable body {
+    cursor: grab;
+  }
+  html.panning,
+  html.panning * {
+    cursor: grabbing !important;
+    user-select: none;
+  }
   body.bg-dots {
     background: radial-gradient(var(--canvas-dot) 1px, transparent 1.5px) 0 0 / 16px 16px, var(--canvas);
   }
