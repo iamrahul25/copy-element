@@ -1,0 +1,86 @@
+/*
+ * UI Picker theme: the single source of every color, radius and font in the extension.
+ * Used by the in-page panel and picker (shadow DOM, matched by :host), the library page and the
+ * preview frame (matched by :root).
+ *
+ * Each color is light-dark(<light>, <dark>). shared/theme.js picks the mode by setting
+ * `color-scheme` on the page root or shadow host. Translucent variants are derived with
+ * color-mix(), so editing a value here updates everything that uses it.
+ */
+
+:root {
+  color-scheme: light dark;
+}
+
+:root,
+:host {
+  /* Surfaces: page behind everything, cards and panels, and controls on them */
+  --page: light-dark(#fafafa, #000000);
+  --background: light-dark(#ffffff, #0c0c0c);
+  --foreground: light-dark(#09090b, #f5f5f5);
+  --control: light-dark(#ffffff, #181818);
+  --muted: light-dark(#f4f4f5, #181818);
+  --muted-foreground: light-dark(#71717a, #8a8a8a);
+  --accent: light-dark(#f4f4f5, #222222);
+  --accent-foreground: light-dark(#18181b, #f5f5f5);
+
+  /* Brand accent (dark mode uses the extension icon's blue): primary buttons, checked boxes,
+     selected toggles, the picker highlight. Accent text and icons use a lighter tint of the
+     same blue so they stay readable on dark surfaces. */
+  --primary: light-dark(#18181b, #5855ea);
+  --primary-foreground: light-dark(#fafafa, #ffffff);
+  --brand: light-dark(#18181b, #8b8cf5);
+
+  /* Selected item in a segmented control */
+  --segment: light-dark(#ffffff, #222222);
+  --segment-foreground: light-dark(#09090b, #8b8cf5);
+  --segment-border: light-dark(transparent, #5855ea);
+
+  /* Lines */
+  --border: light-dark(#e4e4e7, #222222);
+  --input: light-dark(#e4e4e7, #2a2a2a);
+  --checkbox: light-dark(#18181b, #8a8a8a);
+  --ring: light-dark(#a1a1aa, #5855ea);
+
+  /* Feedback */
+  --success: light-dark(#16a34a, #4ade80);
+  --warning: light-dark(#d97706, #fbbf24);
+  --destructive: light-dark(#dc2626, #f87171);
+
+  /* Preview canvas (not part of the copied output) */
+  --canvas: light-dark(#fafafa, #000000);
+  --canvas-dot: light-dark(#d4d4d8, #2a2a2a);
+  --canvas-light: #ffffff;
+  --canvas-dark: light-dark(#18181b, #000000);
+
+  /* Code view */
+  --code-background: light-dark(#ffffff, #000000);
+  --code-foreground: light-dark(#27272a, #e5e5e5);  --syntax-tag: light-dark(#2f6f4f, #86b39a);
+  --syntax-attr: light-dark(#3b5b8c, #8fa8d0);
+  --syntax-string: light-dark(#7a5230, #d1a77f);
+  --syntax-number: light-dark(#8a5a2b, #d4a373);
+  --syntax-comment: light-dark(#a1a1aa, #737373);
+  --syntax-keyword: light-dark(#9f3a5a, #d68aa0);
+  --syntax-selector: light-dark(#6b4f8c, #b39ddb);
+  --syntax-fn: light-dark(#6b4f8c, #b39ddb);
+
+  /* Elevation */
+  --shadow-color: light-dark(rgb(0 0 0 / 0.06), rgb(0 0 0 / 0.5));
+  --shadow-color-strong: light-dark(rgb(0 0 0 / 0.12), rgb(0 0 0 / 0.7));
+  --shadow-sm: 0 1px 2px var(--shadow-color);
+  --shadow: 0 4px 12px var(--shadow-color), 0 1px 3px var(--shadow-color);
+  --shadow-lg: 0 16px 48px var(--shadow-color-strong), 0 2px 8px var(--shadow-color);
+  --overlay: light-dark(rgb(0 0 0 / 0.5), rgb(0 0 0 / 0.75));
+
+  /* Shape and type */
+  --radius: 10px;
+  --radius-sm: calc(var(--radius) - 4px);
+  --radius-md: calc(var(--radius) - 2px);
+  --radius-lg: calc(var(--radius) + 6px);
+  --font-sans: ui-sans-serif, system-ui, -apple-system, 'Segoe UI', Roboto, sans-serif;
+  --font-mono: ui-monospace, SFMono-Regular, Menlo, Consolas, monospace;
+
+  /* Motion */
+  --dur: 150ms;
+  --ease: cubic-bezier(0.2, 0, 0, 1);
+}

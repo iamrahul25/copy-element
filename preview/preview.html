@@ -3,6 +3,7 @@
 <head>
 <meta charset="utf-8">
 <title>UI Picker preview</title>
+<link rel="stylesheet" href="../shared/theme.css">
 <style>
   html,
   body {
@@ -17,14 +18,14 @@
   html.zoomed body {
     overflow: auto;
   }
-  body.bg-checker {
-    background: repeating-conic-gradient(#eceef3 0% 25%, #ffffff 0% 50%) 0 0 / 16px 16px;
+  body.bg-dots {
+    background: radial-gradient(var(--canvas-dot) 1px, transparent 1.5px) 0 0 / 16px 16px, var(--canvas);
   }
-  body.bg-white {
-    background: #ffffff;
+  body.bg-light {
+    background: var(--canvas-light);
   }
   body.bg-dark {
-    background: #18181b;
+    background: var(--canvas-dark);
   }
   ::-webkit-scrollbar {
     width: 10px;
@@ -35,12 +36,12 @@
     background: transparent;
   }
   ::-webkit-scrollbar-thumb {
-    background: rgba(100, 116, 139, 0.45) padding-box;
+    background: color-mix(in srgb, var(--muted-foreground) 45%, transparent) padding-box;
     border: 3px solid transparent;
     border-radius: 999px;
   }
   ::-webkit-scrollbar-thumb:hover {
-    background-color: rgba(100, 116, 139, 0.7);
+    background-color: color-mix(in srgb, var(--muted-foreground) 70%, transparent);
   }
   #stage {
     flex: none;
@@ -49,6 +50,8 @@
     overflow: hidden;
   }
   #frame {
+    /* Must match the copied page's default scheme, or Chrome paints an opaque backdrop behind it. */
+    color-scheme: light;
     position: absolute;
     left: 0;
     top: 0;
@@ -59,10 +62,11 @@
   }
 </style>
 </head>
-<body class="bg-checker">
+<body class="bg-dots">
 <div id="stage"><iframe id="frame" sandbox="allow-same-origin" title="Component"></iframe></div>
 <script src="../shared/util.js"></script>
 <script src="../shared/storage.js"></script>
+<script src="../shared/theme.js"></script>
 <script src="preview.js"></script>
 </body>
 </html>

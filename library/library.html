@@ -6,15 +6,16 @@
 <meta name="color-scheme" content="light dark">
 <title>UI Picker – Component Library</title>
 <link rel="icon" href="../icons/icon-48.png">
+<link rel="stylesheet" href="../shared/theme.css">
 <link rel="stylesheet" href="library.css">
 </head>
 <body>
 <header class="top">
   <div class="brand">
-    <span class="logo" data-icon="logo"></span>
+    <img class="logo" src="../icons/icon-128.png" alt="">
     <div class="title">
       <h1>UI Picker</h1>
-      <span class="sub">Component Library</span>
+      <span class="sub">Component library</span>
     </div>
     <span id="count" class="count"></span>
   </div>
@@ -22,14 +23,15 @@
     <span class="search-ico" data-icon="search"></span>
     <input id="search" class="search" type="search" placeholder="Search by name, site or text…" aria-label="Search components" autocomplete="off">
   </label>
+  <button id="theme-toggle" class="btn outline icon"></button>
 </header>
 
 <main>
   <div id="grid" class="grid"></div>
   <div id="empty" class="empty" hidden>
-    <span class="empty-ico" data-icon="layers"></span>
+    <span class="empty-ico" data-icon="bookmark"></span>
     <h2>No components yet</h2>
-    <p>Click the UI Picker icon (or press <kbd>Alt</kbd>+<kbd>Shift</kbd>+<kbd>C</kbd>) on any page, pick an element, then hit <strong>Save to library</strong>.</p>
+    <p>Click the UI Picker icon (or press <kbd>Alt</kbd>+<kbd>Shift</kbd>+<kbd>C</kbd>) on any page, pick an element, then hit the bookmark button to save it here.</p>
   </div>
   <div id="no-results" class="empty" hidden>
     <span class="empty-ico" data-icon="search"></span>
@@ -44,25 +46,17 @@
       <h2 id="modal-name"></h2>
       <span id="modal-meta" class="sub"></span>
     </div>
-    <button id="modal-open" class="btn ghost" data-icon="external">Open page</button>
+    <button id="modal-open" class="btn outline" data-icon="external">Open page</button>
     <button id="modal-close" class="btn ghost icon" aria-label="Close" title="Close (Esc)" data-icon="x"></button>
   </header>
   <div class="toolbar">
-    <div class="tabs" role="tablist" aria-label="Output view">
-      <button class="tab active" role="tab" aria-selected="true" data-tab="preview">Preview</button>
-      <button class="tab" role="tab" aria-selected="false" data-tab="code">HTML</button>
+    <div class="segmented" role="tablist" aria-label="Output view">
+      <button class="segment active" role="tab" aria-selected="true" data-tab="preview">Preview</button>
+      <button class="segment" role="tab" aria-selected="false" data-tab="code">HTML</button>
     </div>
     <span class="spacer"></span>
     <span id="modal-scale" class="scale"></span>
-    <label class="select" title="Preview background (not part of the output)">
-      <span data-icon="checker"></span>
-      <select id="modal-bg" aria-label="Preview background">
-        <option value="checker">Checker</option>
-        <option value="white">White</option>
-        <option value="dark">Dark</option>
-      </select>
-      <span class="chevron" data-icon="chevron"></span>
-    </label>
+    <button id="modal-bg" class="btn ghost icon sm"></button>
   </div>
   <div class="view">
     <iframe id="modal-frame" class="modal-frame" title="Component preview"></iframe>
@@ -70,7 +64,7 @@
   </div>
   <div class="modal-actions">
     <button id="modal-copy" class="btn primary" data-icon="copy">Copy HTML</button>
-    <button id="modal-download" class="btn secondary" data-icon="download">Download .html</button>
+    <button id="modal-download" class="btn outline" data-icon="download">Download</button>
   </div>
 </dialog>
 
@@ -78,6 +72,7 @@
 
 <script src="../shared/util.js"></script>
 <script src="../shared/storage.js"></script>
+<script src="../shared/theme.js"></script>
 <script src="../shared/highlight.js"></script>
 <script src="../shared/icons.js"></script>
 <script src="library.js"></script>

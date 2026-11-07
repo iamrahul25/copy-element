@@ -3,8 +3,24 @@
   const { h, slug, formatBytes, hostOf, copyText, downloadText } = UIP.util;
   const { icon } = UIP;
   const PREVIEW = '../preview/preview.html';
+  // Preview canvas only; not part of the output. [value, label, icon]
+  const BACKGROUNDS = [
+    ['dots', 'Dotted', 'dots'],
+    ['light', 'Light', 'square'],
+    ['dark', 'Dark', 'square-fill'],
+  ];
 
   for (const el of document.querySelectorAll('[data-icon]')) el.prepend(icon(el.dataset.icon));
+
+  UIP.theme.apply(document.documentElement);
+  const themeToggle = document.getElementById('theme-toggle');
+  themeToggle.addEventListener('click', () => UIP.theme.toggle());
+  UIP.theme.watch((mode) => {
+    const next = mode === 'dark' ? 'light' : 'dark';
+    themeToggle.replaceChildren(icon(next === 'dark' ? 'moon' : 'sun'));
+    themeToggle.title = `Switch to ${next} mode`;
+    themeToggle.setAttribute('aria-label', themeToggle.title);
+  });
 
   const grid = document.getElementById('grid');
   const empty = document.getElementById('empty');
@@ -20,6 +36,7 @@
 
   let components = [];
   let current = null;
+  let bg = BACKGROUNDS[0][0];
   const textCache = new Map();
 
   function textOf(comp) {
@@ -95,7 +112,7 @@
   }
 
   function card(comp) {
-    const src = `${PREVIEW}?id=${encodeURIComponent(comp.id)}&bg=checker`;
+    const src = `${PREVIEW}?id=${encodeURIComponent(comp.id)}&bg=dots`;
     return h(
       'article',
       { class: 'card' },
@@ -131,7 +148,7 @@
         'div',
         { class: 'actions' },
         button('Copy HTML', 'primary', 'copy', () => copy(comp)),
-        button('Download', 'secondary', 'download', () => download(comp), 'Download .html'),
+        button('Download', 'outline', 'download', () => download(comp), 'Download .html'),
         button('', 'danger icon', 'trash', () => remove(comp), `Delete "${comp.name}"`)
       )
     );
@@ -159,12 +176,14 @@
   let codeFor = null;
 
   function setTab(which) {
-    for (const t of modal.querySelectorAll('.tab')) {
+    for (const t of modal.querySelectorAll('.segment')) {
       t.classList.toggle('active', t.dataset.tab === which);
       t.setAttribute('aria-selected', String(t.dataset.tab === which));
     }
     modalFrame.hidden = which !== 'preview';
     modalCode.hidden = which !== 'code';
+    modalBg.hidden = which !== 'preview';
+    modalScale.hidden = which !== 'preview';
     if (which === 'code' && current && codeFor !== current) {
       UIP.highlight.render(modalCode, current.html);
       codeFor = current;
@@ -177,13 +196,26 @@
     document.getElementById('modal-meta').textContent = metaLine(comp);
     modalOpen.hidden = !comp.sourceUrl;
     modalOpen.title = comp.sourceUrl ? sourceTitle(comp) : '';
-    modalFrame.src = `${PREVIEW}?id=${encodeURIComponent(comp.id)}&bg=${modalBg.value}`;
+    modalFrame.src = `${PREVIEW}?id=${encodeURIComponent(comp.id)}&bg=${bg}`;
     setTab('preview');
     modal.showModal();
   }
 
-  modal.querySelectorAll('.tab').forEach((t) => t.addEventListener('click', () => setTab(t.dataset.tab)));
-  modalBg.addEventListener('change', () => current && (modalFrame.src = `${PREVIEW}?id=${encodeURIComponent(current.id)}&bg=${modalBg.value}`));
+  function setBg(index) {
+    const [value, label, iconName] = BACKGROUNDS[index];
+    bg = value;
+    modalBg.replaceChildren(icon(iconName));
+    modalBg.title = `Preview background: ${label} (not part of the output)`;
+    modalBg.setAttribute('aria-label', modalBg.title);
+    modalFrame.contentWindow?.postMessage({ type: 'uip-bg', bg }, location.origin);
+  }
+  setBg(0);
+
+  modal.querySelectorAll('.segment').forEach((t) => t.addEventListener('click', () => setTab(t.dataset.tab)));
+  modalBg.addEventListener('click', () => {
+    const i = BACKGROUNDS.findIndex(([value]) => value === bg);
+    setBg((i + 1) % BACKGROUNDS.length);
+  });
   document.getElementById('modal-close').addEventListener('click', () => modal.close());
   document.getElementById('modal-copy').addEventListener('click', () => current && copy(current));
   document.getElementById('modal-download').addEventListener('click', () => current && download(current));

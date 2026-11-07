@@ -4,12 +4,14 @@
   const params = new URLSearchParams(location.search);
   const PAD = 8;
 
+  window.UiPicker.theme.apply(document.documentElement);
+
   let hint = { width: 0, height: 0 };
   // 0 scales the component to fit the frame.
   let zoom = 0;
 
   function setBg(bg) {
-    document.body.className = `bg-${bg || 'checker'}`;
+    document.body.className = `bg-${bg || 'dots'}`;
   }
 
   function render(html, width, height) {
@@ -47,6 +49,8 @@
     if (e.data?.type === 'uip-zoom') {
       zoom = Number(e.data.zoom) || 0;
       fit();
+    } else if (e.data?.type === 'uip-bg') {
+      setBg(e.data.bg);
     } else if (e.data?.type === 'uip-render') {
       zoom = Number(e.data.zoom) || 0;
       setBg(e.data.bg);

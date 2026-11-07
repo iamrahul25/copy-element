@@ -78,5 +78,28 @@
     setTimeout(() => URL.revokeObjectURL(url), 10000);
   }
 
-  UIP.util = { h, slug, formatBytes, hostOf, uid, copyText, downloadText };
+  const sheets = new Map();
+
+  /** Constructable stylesheets for extension files, for adopting into shadow roots. Cached per path. */
+  function loadSheets(...paths) {
+    return Promise.all(
+      paths.map((path) => {
+        if (!sheets.has(path)) {
+          sheets.set(
+            path,
+            fetch(chrome.runtime.getURL(path))
+              .then((r) => r.text())
+              .then((text) => {
+                const sheet = new CSSStyleSheet();
+                sheet.replaceSync(text);
+                return sheet;
+              })
+          );
+        }
+        return sheets.get(path);
+      })
+    );
+  }
+
+  UIP.util = { h, slug, formatBytes, hostOf, uid, copyText, downloadText, loadSheets };
 })();

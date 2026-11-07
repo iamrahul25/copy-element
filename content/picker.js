@@ -3,7 +3,9 @@
   const UIP = (window.UiPicker = window.UiPicker || {});
   if (UIP.picker) return;
 
-  const ACCENT = '#6366f1';
+  // Theme tokens from shared/theme.css, with fallbacks for the moment before the sheet is adopted.
+  const PRIMARY = 'var(--primary, #18181b)';
+  const ON_PRIMARY = 'var(--primary-foreground, #fafafa)';
   let active = null;
 
   function css(el, styles) {
@@ -27,26 +29,32 @@
       'pointer-events': 'auto',
     });
     const shadow = host.attachShadow({ mode: 'open' });
+    const stopTheme = UIP.theme.apply(host);
+    UIP.util
+      .loadSheets('shared/theme.css')
+      .then((sheets) => (shadow.adoptedStyleSheets = sheets))
+      .catch(() => {});
 
     const box = css(document.createElement('div'), {
       position: 'fixed',
       display: 'none',
       'pointer-events': 'none',
       'box-sizing': 'border-box',
-      border: `2px solid ${ACCENT}`,
-      background: 'rgba(99, 102, 241, 0.12)',
-      'border-radius': '2px',
+      border: `2px solid ${PRIMARY}`,
+      outline: `1px solid ${ON_PRIMARY}`,
+      background: `color-mix(in srgb, ${PRIMARY} 10%, transparent)`,
+      'border-radius': '4px',
       transition: 'all 50ms ease-out',
     });
     const label = css(document.createElement('div'), {
       position: 'fixed',
       display: 'none',
       'pointer-events': 'none',
-      background: '#111827',
-      color: '#fff',
-      font: '12px/1.4 ui-monospace, SFMono-Regular, Menlo, Consolas, monospace',
-      padding: '3px 7px',
-      'border-radius': '4px',
+      background: PRIMARY,
+      color: ON_PRIMARY,
+      font: '12px/1.4 var(--font-mono, ui-monospace, SFMono-Regular, Menlo, Consolas, monospace)',
+      padding: '3px 8px',
+      'border-radius': 'var(--radius-sm, 6px)',
       'white-space': 'nowrap',
       'max-width': '70vw',
       overflow: 'hidden',
@@ -58,12 +66,12 @@
       left: '50%',
       transform: 'translateX(-50%)',
       'pointer-events': 'none',
-      background: '#111827',
-      color: '#fff',
-      font: '13px/1.4 system-ui, -apple-system, Segoe UI, sans-serif',
+      background: PRIMARY,
+      color: ON_PRIMARY,
+      font: '13px/1.4 var(--font-sans, system-ui, -apple-system, Segoe UI, sans-serif)',
       padding: '8px 14px',
       'border-radius': '999px',
-      'box-shadow': '0 6px 24px rgba(0,0,0,.25)',
+      'box-shadow': 'var(--shadow-lg, 0 6px 24px rgba(0,0,0,.25))',
       'white-space': 'nowrap',
     });
     hint.textContent = 'Click to copy  ·  ↑ parent  ·  ↓ child  ·  Enter select  ·  Esc cancel';
@@ -173,6 +181,7 @@
       for (const t of pointerEvents) window.removeEventListener(t, block, true);
       window.removeEventListener('keydown', onKey, true);
       window.removeEventListener('scroll', onScroll, true);
+      stopTheme();
       host.remove();
     }
 

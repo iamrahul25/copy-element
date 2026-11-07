@@ -3,20 +3,16 @@
   const UIP = (window.UiPicker = window.UiPicker || {});
   if (UIP.panel) return;
 
-  const { h, slug, formatBytes, copyText, downloadText } = UIP.util;
+  const { h, slug, formatBytes, copyText, downloadText, loadSheets } = UIP.util;
   const EXT_ORIGIN = new URL(chrome.runtime.getURL('')).origin;
   const PREVIEW_URL = chrome.runtime.getURL('preview/preview.html');
   const LARGE_NODES = 2000;
   const LARGE_BYTES = 5 * 1024 * 1024;
 
   const OPTIONS = {
-    minimal: [
-      'Minimal CSS',
-      'Only the styles that change how it looks, as shorthands. Sizes are kept only where the layout needs them',
-    ],
     pseudo: ['Pseudo-elements', '::before / ::after content'],
-    fonts: ['Web fonts', 'Include matching @font-face rules'],
     states: ['Hover / focus', 'Copy :hover, :focus and :active rules'],
+    fonts: ['Web fonts', 'Include matching @font-face rules'],
     svg: ['SVG internals', 'Style shapes inside inline SVGs'],
     images: ['Embed images', 'Inline images as base64 so the file works offline'],
     keepClasses: ['Keep classes', 'Keep the original class names'],
@@ -26,15 +22,24 @@
       'Keep the Tailwind classes, load Tailwind from its CDN and leave out the CSS those classes already write',
     ],
   };
-  const OPTION_GROUPS = [
-    ['Styles (CSS)', 'brush', ['minimal', 'pseudo', 'fonts', 'states']],
-    ['Assets', 'image', ['svg', 'images']],
-    ['Output', 'gear', ['keepClasses', 'pageBg', 'tailwind']],
-  ];
   // Options that only apply when the page has something for them.
   const AVAILABLE = {
     tailwind: [(snap) => !!snap?.meta.tailwind, 'No Tailwind CSS found on this page'],
   };
+  const OUTPUT_STYLES = [
+    [
+      'clean',
+      'Clean',
+      'Only the styles that change how it looks, as shorthands. Sizes are kept only where the layout needs them',
+    ],
+    ['exact', 'Exact', 'Every computed style, for pixel-exact copies'],
+  ];
+  // Preview canvas only; not part of the output. [value, label, icon]
+  const BACKGROUNDS = [
+    ['dots', 'Dotted', 'dots'],
+    ['light', 'Light', 'square'],
+    ['dark', 'Dark', 'square-fill'],
+  ];
   const ZOOMS = [0.1, 0.25, 0.33, 0.5, 0.67, 0.75, 1, 1.25, 1.5, 2];
 
   const icon = UIP.icon;
@@ -46,21 +51,8 @@
       .sendMessage({ type: 'uip-fetch', url, as })
       .catch((err) => ({ ok: false, error: String(err) }));
 
-  let sheetPromise = null;
-  function getSheet() {
-    if (!sheetPromise) {
-      sheetPromise = fetch(chrome.runtime.getURL('content/panel.css'))
-        .then((r) => r.text())
-        .then((text) => {
-          const sheet = new CSSStyleSheet();
-          sheet.replaceSync(text);
-          return sheet;
-        });
-    }
-    return sheetPromise;
-  }
-
   let ui = null;
+  let advancedOpen = false;
 
   UIP.start = () => {
     if (UIP.picker.isActive()) {
@@ -84,6 +76,7 @@
   function close() {
     if (!ui) return;
     window.removeEventListener('message', ui.onMessage);
+    for (const stop of ui.cleanup) stop();
     ui.host.remove();
     ui = null;
   }
@@ -107,6 +100,8 @@
     });
 
     const shadow = host.attachShadow({ mode: 'open' });
+    await UIP.theme.ready;
+    const cleanup = [UIP.theme.apply(host)];
     const state = {
       snap,
       opts: await UIP.storage.getOptions(UIP.serializer.DEFAULT_OPTIONS),
@@ -115,7 +110,7 @@
       bytes: 0,
       lines: 0,
       codeStale: true,
-      bg: 'checker',
+      bg: BACKGROUNDS[0][0],
       zoom: 'fit',
       scale: 1,
       ready: false,
@@ -127,39 +122,60 @@
     const status = h('div', { class: 'status', role: 'status', 'aria-live': 'polite' });
     const frame = h('iframe', { class: 'preview', src: PREVIEW_URL, title: 'Component preview' });
     const code = h('pre', { class: 'code', hidden: true });
-    const nameInput = h('input', {
-      class: 'name',
-      type: 'text',
-      placeholder: 'Component name',
-      'aria-label': 'Component name',
-      value: snap?.meta.name || '',
-      spellcheck: 'false',
-    });
 
     const btn = (text, cls, onclick, title, iconName) =>
       h(
         'button',
-        { class: `btn ${cls || ''}`, onclick, title, 'aria-label': text ? null : title },
+        { type: 'button', class: `btn ${cls || ''}`, onclick, title, 'aria-label': text ? null : title },
         iconName && icon(iconName),
         text && h('span', { text })
       );
 
-    const selectBox = (iconName, title, options, onchange) =>
-      h(
-        'label',
-        { class: iconName ? 'select has-icon' : 'select', title },
-        iconName && icon(iconName),
-        h('select', { onchange: (e) => onchange(e.target.value) }, options),
-        h('span', { class: 'chevron' }, icon('chevron'))
-      );
+    // A row of buttons where exactly one is active. `items` are [value, text, title].
+    const segmented = (label, items, value, onselect, tabs = false) => {
+      const attr = tabs ? 'aria-selected' : 'aria-pressed';
+      const buttons = new Map();
+      const select = (v) => {
+        for (const [key, b] of buttons) {
+          b.classList.toggle('active', key === v);
+          b.setAttribute(attr, String(key === v));
+        }
+      };
+      for (const [key, text, title] of items) {
+        const onclick = () => {
+          select(key);
+          onselect(key);
+        };
+        buttons.set(key, h('button', { type: 'button', class: 'segment', role: tabs && 'tab', text, title, onclick }));
+      }
+      select(value);
+      return h('div', { class: 'segmented', role: tabs ? 'tablist' : 'group', 'aria-label': label }, [...buttons.values()]);
+    };
 
-    const zoomFit = h('option', { value: 'fit', text: 'Fit' });
-    const zoomSelect = selectBox(
-      null,
-      'Preview zoom',
-      [zoomFit, ...ZOOMS.map((z) => h('option', { value: String(z), text: `${Math.round(z * 100)}%` }))],
-      (value) => setZoom(value)
-    );
+    /* stats */
+    const pill = (singular, plural = `${singular}s`) => {
+      const value = h('strong', { text: '–' });
+      const label = h('span', { text: plural });
+      const delta = h('span', { class: 'delta' });
+      return {
+        el: h('span', { class: 'pill' }, value, label, delta),
+        set(n, change = 0) {
+          value.textContent = fmt(n);
+          label.textContent = n === 1 ? singular : plural;
+          delta.textContent = change ? `${change > 0 ? '+' : '−'}${fmt(Math.abs(change))}` : '';
+        },
+      };
+    };
+    const stats = {
+      lines: pill('line'),
+      nodes: pill('element'),
+      classes: pill('class', 'classes'),
+      tailwind: pill('Tailwind class', 'Tailwind classes'),
+    };
+    stats.tailwind.el.hidden = true;
+    const sizeValue = h('strong', { text: '–' });
+
+    /* preview toolbar */
     const zoomStep = (dir) => {
       const next =
         dir > 0
@@ -167,39 +183,20 @@
           : ZOOMS.findLast((z) => z < state.scale - 0.001);
       if (next) setZoom(String(next));
     };
-    const zoomOut = btn('', 'zoom-btn', () => zoomStep(-1), 'Zoom out', 'minus');
-    const zoomIn = btn('', 'zoom-btn', () => zoomStep(1), 'Zoom in', 'plus');
-    const zoomControls = h(
-      'div',
-      { class: 'zoom' },
-      h('div', { class: 'zoom-btns' }, zoomOut, zoomIn),
-      zoomSelect
-    );
-    const bgSelect = selectBox(
-      'checker',
-      'Preview background (not part of the output)',
-      [
-        h('option', { value: 'checker', text: 'Checker' }),
-        h('option', { value: 'white', text: 'White' }),
-        h('option', { value: 'dark', text: 'Dark' }),
-      ],
-      (value) => {
-        state.bg = value;
-        postPreview();
-      }
-    );
+    const zoomOut = btn('', 'ghost icon sm', () => zoomStep(-1), 'Zoom out', 'minus');
+    const zoomIn = btn('', 'ghost icon sm', () => zoomStep(1), 'Zoom in', 'plus');
+    const zoomValue = btn('Fit', 'ghost sm zoom-value', () => setZoom('fit'), 'Fit to preview');
+    const bgBtn = btn('', 'ghost icon sm', () => {
+      const i = BACKGROUNDS.findIndex(([value]) => value === state.bg);
+      setBg((i + 1) % BACKGROUNDS.length);
+    });
+    const previewTools = h('div', { class: 'zoom' }, zoomOut, zoomValue, zoomIn, bgBtn);
 
-    const tabPreview = h('button', { class: 'tab active', role: 'tab', 'aria-selected': 'true', text: 'Preview' });
-    const tabCode = h('button', { class: 'tab', role: 'tab', 'aria-selected': 'false', text: 'HTML' });
     const setTab = (which) => {
       const preview = which === 'preview';
-      tabPreview.classList.toggle('active', preview);
-      tabCode.classList.toggle('active', !preview);
-      tabPreview.setAttribute('aria-selected', String(preview));
-      tabCode.setAttribute('aria-selected', String(!preview));
       frame.hidden = !preview;
       code.hidden = preview;
-      zoomControls.hidden = !preview;
+      previewTools.hidden = !preview;
       if (!preview) showCode();
     };
     const showCode = () => {
@@ -207,8 +204,23 @@
       UIP.highlight.render(code, state.html);
       state.codeStale = false;
     };
-    tabPreview.addEventListener('click', () => setTab('preview'));
-    tabCode.addEventListener('click', () => setTab('code'));
+    const tabs = segmented(
+      'Output view',
+      [
+        ['preview', 'Preview'],
+        ['code', 'HTML'],
+      ],
+      'preview',
+      setTab,
+      true
+    );
+
+    /* options */
+    const outputStyle = segmented('Output style', OUTPUT_STYLES, state.opts.minimal ? 'clean' : 'exact', (value) => {
+      state.opts.minimal = value === 'clean';
+      UIP.storage.setOptions(state.opts);
+      scheduleRender();
+    });
 
     const optionEl = (key) => {
       const [label, title] = OPTIONS[key];
@@ -230,50 +242,95 @@
         h('span', { text: label })
       );
     };
+    const advanced = h('div', { class: 'advanced', hidden: !advancedOpen }, Object.keys(OPTIONS).map(optionEl));
+    const disclosure = h(
+      'button',
+      {
+        type: 'button',
+        class: 'disclosure',
+        'aria-expanded': String(advancedOpen),
+        onclick: () => {
+          advancedOpen = advanced.hidden;
+          advanced.hidden = !advancedOpen;
+          disclosure.setAttribute('aria-expanded', String(advancedOpen));
+        },
+      },
+      icon('chevron'),
+      h('span', { text: 'Advanced options' })
+    );
 
-    const statValues = {};
-    const stat = (key, iconName, label) =>
-      h(
-        'div',
-        { class: 'stat' },
-        h('span', { class: 'stat-ico' }, icon(iconName)),
-        h('div', { class: 'stat-text' }, (statValues[key] = h('strong', { text: '–' })), h('span', { text: label }))
-      );
-
-    // Shows a check and `text` on the button for a moment, as confirmation next to where the user clicked.
+    // Shows a check (and `text`, unless it is an icon button) for a moment, as confirmation next to where the user clicked.
     const flash = (button, text) => {
       clearTimeout(button.flashTimer);
       button.original ||= [...button.childNodes];
       button.classList.add('done');
-      button.replaceChildren(icon('check'), h('span', { text }));
+      const iconOnly = button.classList.contains('icon');
+      button.replaceChildren(icon('check'), ...(iconOnly ? [] : [h('span', { text })]));
       button.flashTimer = setTimeout(() => {
         button.classList.remove('done');
         button.replaceChildren(...button.original);
       }, 1600);
     };
 
-    const saveBtn = btn(
-      'Save to library',
-      'secondary',
-      async () => {
-        if (!state.html) return;
-        await UIP.storage.save({
-          name: nameInput.value.trim() || snap.meta.name || 'Component',
-          html: state.html,
-          previewHtml: state.previewHtml !== state.html ? state.previewHtml : undefined,
-          sourceUrl: snap.meta.sourceUrl,
-          sourceTitle: snap.meta.sourceTitle,
-          sourceScroll: snap.meta.scroll,
-          width: snap.meta.width,
-          height: snap.meta.height,
-          sizeBytes: state.bytes,
-        });
-        flash(saveBtn, 'Saved');
-        setStatus('Saved to library', 'ok');
+    /* save */
+    const nameInput = h('input', {
+      class: 'name',
+      type: 'text',
+      placeholder: 'Component name',
+      'aria-label': 'Component name',
+      value: snap?.meta.name || '',
+      spellcheck: 'false',
+      onkeydown: (e) => {
+        if (e.key === 'Enter') {
+          e.preventDefault();
+          save();
+        } else if (e.key === 'Escape') {
+          e.preventDefault();
+          toggleSave(false);
+        }
       },
-      null,
-      'bookmark'
+    });
+    const confirmSaveBtn = btn('Save', 'primary', () => save());
+    const saveRow = h(
+      'div',
+      { class: 'save', hidden: true },
+      nameInput,
+      confirmSaveBtn,
+      btn('', 'ghost icon', () => toggleSave(false), 'Cancel', 'x')
     );
+    const bookmarkBtn = btn('', 'outline icon', () => toggleSave(saveRow.hidden), 'Save to library', 'bookmark');
+    bookmarkBtn.setAttribute('aria-expanded', 'false');
+
+    function toggleSave(show) {
+      saveRow.hidden = !show;
+      bookmarkBtn.setAttribute('aria-expanded', String(show));
+      if (show) {
+        nameInput.focus();
+        nameInput.select();
+      } else {
+        bookmarkBtn.focus();
+      }
+    }
+
+    async function save() {
+      if (!state.html) return;
+      await UIP.storage.save({
+        name: nameInput.value.trim() || snap.meta.name || 'Component',
+        html: state.html,
+        previewHtml: state.previewHtml !== state.html ? state.previewHtml : undefined,
+        sourceUrl: snap.meta.sourceUrl,
+        sourceTitle: snap.meta.sourceTitle,
+        sourceScroll: snap.meta.scroll,
+        width: snap.meta.width,
+        height: snap.meta.height,
+        sizeBytes: state.bytes,
+      });
+      toggleSave(false);
+      flash(bookmarkBtn);
+      setStatus('Saved to library', 'ok');
+    }
+
+    /* actions */
     const copyBtn = btn(
       'Copy HTML',
       'primary',
@@ -281,111 +338,106 @@
         if (!state.html) return;
         const ok = await copyText(state.html, shadow);
         if (ok) flash(copyBtn, 'Copied');
-        setStatus(ok ? 'Copied to clipboard' : 'Copy failed. Use Download instead.', ok ? 'ok' : 'error');
+        else setStatus('Copy failed. Use Download instead.', 'error');
       },
       null,
       'copy'
     );
     const downloadBtn = btn(
-      'Download .html',
-      'secondary',
+      'Download',
+      'outline',
       () => {
         if (!state.html) return;
         downloadText(`${slug(nameInput.value || snap.meta.name)}.html`, state.html, shadow);
         flash(downloadBtn, 'Downloaded');
-        setStatus('Downloaded', 'ok');
       },
-      null,
+      'Download .html',
       'download'
     );
-    const outputButtons = [saveBtn, copyBtn, downloadBtn];
+    const outputButtons = [copyBtn, downloadBtn, bookmarkBtn, confirmSaveBtn];
     const setOutputReady = (ready) => {
       for (const b of outputButtons) b.disabled = !ready;
     };
     setOutputReady(false);
 
+    const themeBtn = btn('', 'ghost icon', () => UIP.theme.toggle());
+    cleanup.push(
+      UIP.theme.watch((mode) => {
+        const next = mode === 'dark' ? 'light' : 'dark';
+        themeBtn.replaceChildren(icon(next === 'dark' ? 'moon' : 'sun'));
+        themeBtn.title = `Switch to ${next} mode`;
+        themeBtn.setAttribute('aria-label', themeBtn.title);
+      })
+    );
+
     const titleEl = h('strong', { text: 'UI Picker' });
     const header = h(
       'header',
       { class: 'head' },
-      h('span', { class: 'logo' }, icon('logo')),
+      h('img', { class: 'logo', src: chrome.runtime.getURL('icons/icon-128.png'), alt: '', draggable: 'false' }),
       h(
         'div',
         { class: 'title' },
         titleEl,
-        h('span', { class: 'tagline', text: 'Select any element on a website and extract clean HTML and CSS.' })
+        h('span', { class: 'tagline', text: 'Pick any element, get clean HTML and CSS.' })
       ),
-      btn(
-        'Library',
-        'secondary',
-        () => chrome.runtime.sendMessage({ type: 'uip-open-library' }),
-        'Open component library',
-        'folder'
-      ),
-      btn('', 'ghost icon', close, 'Close', 'x')
+      btn('Library', 'outline', () => chrome.runtime.sendMessage({ type: 'uip-open-library' }), 'Open component library', 'folder'),
+      themeBtn,
+      btn('', 'ghost icon', close, 'Close (Esc)', 'x')
     );
 
     const panel = h(
       'div',
       { class: 'panel' },
-      header,
       h(
         'section',
-        { class: 'stats' },
-        stat('lines', 'code', 'Lines of code'),
-        stat('nodes', 'layers', 'Elements'),
-        stat('classes', 'hash', 'Classes'),
-        stat('size', 'file', 'Size')
+        { class: 'top' },
+        header,
+        h(
+          'div',
+          { class: 'stats' },
+          stats.lines.el,
+          stats.nodes.el,
+          stats.classes.el,
+          stats.tailwind.el,
+          h('span', { class: 'pill' }, sizeValue)
+        )
       ),
       h(
         'section',
         { class: 'viewer' },
+        h('div', { class: 'toolbar' }, tabs, h('span', { class: 'spacer' }), previewTools),
         h(
           'div',
-          { class: 'toolbar' },
-          h('div', { class: 'tabs', role: 'tablist', 'aria-label': 'Output view' }, tabPreview, tabCode),
-          h('span', { class: 'spacer' }),
-          zoomControls,
-          bgSelect
-        ),
-        h('div', { class: 'view' }, frame, code)
+          { class: 'view' },
+          frame,
+          code,
+          btn('Re-pick', 'outline sm repick', () => UIP.start(), 'Pick another element', 'refresh')
+        )
       ),
       h(
         'section',
         { class: 'options' },
         h(
           'div',
-          { class: 'options-head' },
-          h('h2', { text: 'Extraction options' }),
-          h('span', { class: 'hint', text: 'Choose what to include in the extracted code.' })
+          { class: 'option-row' },
+          h(
+            'div',
+            { class: 'option-text' },
+            h('h2', null, icon('sliders'), h('span', { text: 'Output style' })),
+            h('p', { text: 'Clean is best for most elements.' })
+          ),
+          outputStyle
         ),
-        h(
-          'div',
-          { class: 'groups' },
-          OPTION_GROUPS.map(([label, iconName, keys]) =>
-            h(
-              'div',
-              { class: 'group' },
-              h('div', { class: 'group-head' }, icon(iconName), h('span', { text: label })),
-              h('div', { class: 'group-body' }, keys.map(optionEl))
-            )
-          )
-        )
+        disclosure,
+        advanced
       ),
-      h('div', { class: 'save' }, h('label', { class: 'field' }, icon('file'), nameInput), saveBtn),
-      h(
-        'div',
-        { class: 'actions' },
-        copyBtn,
-        downloadBtn,
-        btn('Re-pick element', 'ghost', () => UIP.start(), 'Pick another element', 'refresh')
-      ),
-      status
+      h('footer', { class: 'foot' }, saveRow, h('div', { class: 'actions' }, copyBtn, downloadBtn, bookmarkBtn), status)
     );
 
     shadow.append(panel);
     try {
-      shadow.adoptedStyleSheets = [await getSheet()];
+      shadow.adoptedStyleSheets = await loadSheets('shared/theme.css', 'content/panel.css');
     } catch (err) {
       console.error('[UI Picker] could not load panel styles', err);
     }
@@ -397,11 +449,12 @@
     const STATUS_ICONS = { ok: 'check', warn: 'alert', error: 'alert' };
     function setStatus(text, kind) {
       const name = STATUS_ICONS[kind];
-      status.replaceChildren(...(name ? [icon(name)] : []), h('span', { text }));
+      if (text) status.replaceChildren(...(name ? [icon(name)] : []), h('span', { text }));
+      else status.replaceChildren();
       status.className = `status ${kind || ''}`;
     }
 
-    const zoomValue = () => (state.zoom === 'fit' ? 0 : Number(state.zoom));
+    const zoomLevel = () => (state.zoom === 'fit' ? 0 : Number(state.zoom));
 
     function postPreview() {
       if (!state.ready || !state.html) return;
@@ -412,21 +465,26 @@
           width: snap.meta.width,
           height: snap.meta.height,
           bg: state.bg,
-          zoom: zoomValue(),
+          zoom: zoomLevel(),
         },
         EXT_ORIGIN
       );
     }
 
+    function setBg(index) {
+      const [value, label, iconName] = BACKGROUNDS[index];
+      state.bg = value;
+      bgBtn.replaceChildren(icon(iconName));
+      const title = `Preview background: ${label} (not part of the output)`;
+      bgBtn.title = title;
+      bgBtn.setAttribute('aria-label', title);
+      if (state.ready) frame.contentWindow.postMessage({ type: 'uip-bg', bg: value }, EXT_ORIGIN);
+    }
+    setBg(0);
+
     function setZoom(value) {
       state.zoom = value;
-      zoomSelect.querySelector('select').value = value;
-      postZoom();
-    }
-
-    function postZoom() {
-      if (!state.ready) return;
-      frame.contentWindow.postMessage({ type: 'uip-zoom', zoom: zoomValue() }, EXT_ORIGIN);
+      if (state.ready) frame.contentWindow.postMessage({ type: 'uip-zoom', zoom: zoomLevel() }, EXT_ORIGIN);
     }
 
     function scheduleRender() {
@@ -436,7 +494,7 @@
 
     async function render() {
       const seq = ++state.seq;
-      setStatus('Building…', 'busy');
+      const busy = setTimeout(() => seq === state.seq && setStatus('Building…', 'busy'), 300);
       try {
         const { html, previewHtml, bytes, classCount, tailwindCount } = await UIP.serializer.build(snap, state.opts);
         if (seq !== state.seq || !ui) return;
@@ -448,28 +506,21 @@
         if (!code.hidden) showCode();
         postPreview();
         const lines = html.replace(/\n$/, '').split('\n').length;
-        const delta = state.lines ? lines - state.lines : 0;
+        stats.lines.set(lines, state.lines ? lines - state.lines : 0);
         state.lines = lines;
-        statValues.lines.textContent = fmt(lines);
-        statValues.classes.textContent = fmt(classCount);
-        statValues.size.textContent = formatBytes(bytes);
-        const lineNote = `${fmt(lines)} lines${delta ? ` (${delta > 0 ? '+' : '−'}${fmt(Math.abs(delta))})` : ''}`;
-        const notes = [lineNote, `${fmt(snap.meta.nodeCount)} elements`, `${fmt(classCount)} classes`];
-        if (html !== previewHtml) notes.push(`${fmt(tailwindCount)} Tailwind classes`);
-        notes.push(formatBytes(bytes));
-        let kind = '';
-        if (snap.meta.nodeCount > LARGE_NODES) {
-          notes.push('large element');
-          kind = 'warn';
-        }
-        if (bytes > LARGE_BYTES) {
-          notes.push('output over 5 MB');
-          kind = 'warn';
-        }
-        setStatus(notes.join(' · '), kind);
+        stats.classes.set(classCount);
+        stats.tailwind.set(tailwindCount);
+        stats.tailwind.el.hidden = html === previewHtml;
+        sizeValue.textContent = formatBytes(bytes);
+        const warnings = [];
+        if (snap.meta.nodeCount > LARGE_NODES) warnings.push(`Large element (${fmt(snap.meta.nodeCount)} elements)`);
+        if (bytes > LARGE_BYTES) warnings.push('Output is over 5 MB');
+        setStatus(warnings.join(' · '), warnings.length ? 'warn' : '');
       } catch (err) {
         console.error('[UI Picker]', err);
         if (seq === state.seq) setStatus(`Build failed: ${err.message}`, 'error');
+      } finally {
+        clearTimeout(busy);
       }
     }
 
@@ -477,7 +528,8 @@
       if (e.source !== frame.contentWindow || e.origin !== EXT_ORIGIN) return;
       if (e.data?.type !== 'uip-rendered') return;
       state.scale = e.data.scale;
-      if (e.data.fit) zoomFit.textContent = `Fit ${Math.round(e.data.scale * 100)}%`;
+      zoomValue.querySelector('span').textContent = `${Math.round(e.data.scale * 100)}%`;
+      zoomValue.title = e.data.fit ? 'Fitted to the preview' : 'Fit to preview';
       zoomOut.disabled = state.scale <= ZOOMS[0] + 0.001;
       zoomIn.disabled = state.scale >= ZOOMS[ZOOMS.length - 1] - 0.001;
     };
@@ -487,14 +539,14 @@
       postPreview();
     });
 
-    ui = { host, onMessage };
+    ui = { host, onMessage, cleanup };
 
     if (!snap) {
       setStatus(`Could not copy this element: ${error?.message || error}`, 'error');
       return;
     }
     titleEl.title = `${snap.meta.label}  ${snap.meta.width} × ${snap.meta.height}`;
-    statValues.nodes.textContent = fmt(snap.meta.nodeCount);
+    stats.nodes.set(snap.meta.nodeCount);
     render();
   }
 
