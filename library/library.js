@@ -21,6 +21,8 @@
     themeToggle.title = `Switch to ${next} mode`;
     themeToggle.setAttribute('aria-label', themeToggle.title);
   });
+  UIP.settings.applyZoom(document.documentElement);
+  themeToggle.after(UIP.settings.menu({ buttonClass: 'btn outline icon' }).el);
 
   const grid = document.getElementById('grid');
   const empty = document.getElementById('empty');

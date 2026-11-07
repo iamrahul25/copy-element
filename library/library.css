@@ -5,6 +5,8 @@
 }
 
 body {
+  /* Breakpoints are container queries on the body so they follow the interface size too. */
+  container-type: inline-size;
   margin: 0;
   font: 14px/1.5 var(--font-sans);
   color: var(--foreground);
@@ -133,7 +135,8 @@ body {
   position: relative;
   display: flex;
   align-items: center;
-  width: min(380px, 50vw);
+  /* --zoom is the interface size (shared/settings.js); viewport units are zoomed with the page. */
+  width: min(380px, 50vw / var(--zoom, 1));
   color: var(--muted-foreground);
 }
 
@@ -409,8 +412,8 @@ kbd {
 /* ---------- modal ---------- */
 
 .modal {
-  width: min(1100px, 94vw);
-  height: min(780px, 90vh);
+  width: min(1100px, 94vw / var(--zoom, 1));
+  height: min(780px, 90vh / var(--zoom, 1));
   padding: 0;
   border: 1px solid var(--border);
   border-radius: var(--radius-lg);
@@ -607,7 +610,7 @@ kbd {
 
 /* ---------- small screens ---------- */
 
-@media (max-width: 640px) {
+@container (max-width: 640px) {
   .top {
     flex-wrap: wrap;
     padding: 12px 16px;

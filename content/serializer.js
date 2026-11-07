@@ -876,6 +876,7 @@ button, input:where([type='button'], [type='reset'], [type='submit']), ::file-se
           height: Math.round(rect.height),
           nodeCount: ctx.infos.length,
           families: [...ctx.families],
+          tokens: UIP.tokens.extract(rootEl),
           pageBg: pageBackground(rootEl),
           tableWrap,
           tailwind,

@@ -35,6 +35,14 @@ For some empty values like this: (remove this type of this things)
    -> Saves the page URL and scroll position from when the element was picked. In the library, click the
       site name on a card or "Open page" in the full preview to reopen the page scrolled to that spot.
 
+7. Extracted colors palette and extracted fonts, each sorted by usage %.
+   -> "Extracted styles" section in the panel (Colors / Fonts tabs). Hover a color to hatch (////) every area
+      painted in it in the preview, click to copy it. Hover a font to box the text set in it (click keeps it boxed).
+
+8. Settings button, with an overall zoom level that controls the size of everything (font, buttons, images), like real zoom.
+   -> Gear button in the panel and library header. "Interface size" steps from 50% to 200% with − / +
+      (Reset goes back to 100%). Scales the panel, picker label, library and previews together, and is saved.
+
 
 
 

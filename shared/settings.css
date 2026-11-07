@@ -1,0 +1,129 @@
+/* Settings button and menu (shared/settings.js), used by the panel and the library header.
+   Buttons inside reuse each page's .btn styles. */
+
+.settings {
+  position: relative;
+  display: flex;
+  flex: none;
+}
+
+.settings > .btn[aria-expanded='true'] {
+  background: var(--accent);
+  color: var(--accent-foreground);
+}
+
+.settings-menu {
+  position: absolute;
+  top: calc(100% + 8px);
+  right: 0;
+  z-index: 10;
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+  width: 340px;
+  padding: 14px 16px 16px;
+  background: var(--background);
+  color: var(--foreground);
+  border: 1px solid var(--border);
+  border-radius: var(--radius);
+  box-shadow: var(--shadow-lg);
+  font: 14px/1.45 var(--font-sans);
+  text-align: left;
+  cursor: auto;
+  animation: settings-in 150ms var(--ease);
+}
+
+@keyframes settings-in {
+  from {
+    opacity: 0;
+    transform: translateY(-4px);
+  }
+}
+
+.settings-head {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  margin: -6px -8px -4px 0;
+}
+
+.settings-menu h3 {
+  margin: 0;
+  font-size: 12px;
+  font-weight: 600;
+  letter-spacing: 0.04em;
+  text-transform: uppercase;
+  color: var(--muted-foreground);
+}
+
+.settings-row {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+}
+
+.settings-text {
+  display: flex;
+  flex-direction: column;
+  flex: 1;
+  min-width: 0;
+}
+
+.settings-text strong {
+  font-size: 14px;
+  font-weight: 600;
+}
+
+.settings-text span {
+  font-size: 12px;
+  color: var(--muted-foreground);
+}
+
+.settings-stepper {
+  display: flex;
+  align-items: center;
+  gap: 2px;
+  padding: 2px;
+  border-radius: var(--radius-md);
+  background: var(--muted);
+}
+
+.settings-value {
+  min-width: 48px;
+  text-align: center;
+  font-size: 13px;
+  font-weight: 600;
+  font-variant-numeric: tabular-nums;
+}
+
+.settings-menu .btn.sm {
+  height: 30px;
+  padding: 0 12px;
+  font-size: 13px;
+}
+
+.settings-menu .btn.icon.sm {
+  width: 30px;
+  padding: 0;
+}
+
+.settings-menu .btn.icon.sm .ico {
+  width: 16px;
+  height: 16px;
+}
+
+.settings-menu .btn:disabled {
+  opacity: 0.4;
+  cursor: not-allowed;
+  transform: none;
+}
+
+.settings-menu .btn.ghost:disabled:hover {
+  background: transparent;
+  color: var(--muted-foreground);
+}
+
+.settings-foot {
+  display: flex;
+  justify-content: flex-end;
+}

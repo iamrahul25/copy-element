@@ -2,9 +2,11 @@ const SCRIPTS = [
   'shared/util.js',
   'shared/storage.js',
   'shared/theme.js',
+  'shared/settings.js',
   'shared/highlight.js',
   'shared/icons.js',
   'content/format.js',
+  'content/tokens.js',
   'content/serializer.js',
   'content/picker.js',
   'content/panel.js',
@@ -30,6 +32,13 @@ chrome.runtime.onMessage.addListener((msg, sender, sendResponse) => {
   if (msg?.type === 'uip-fetch') {
     fetchResource(msg.url, msg.as).then(sendResponse, (err) =>
       sendResponse({ ok: false, error: String(err?.message || err) })
+    );
+    return true;
+  }
+  if (msg?.type === 'uip-capture-pixels') {
+    capturePixels(sender.tab?.windowId, msg.rect).then(
+      (bins) => sendResponse({ ok: true, bins }),
+      (err) => sendResponse({ ok: false, error: String(err?.message || err) })
     );
     return true;
   }
@@ -123,6 +132,39 @@ function restoreScroll(x, y) {
     if (settled < 4 && Date.now() < deadline) setTimeout(tick, 250);
   };
   tick();
+}
+
+const MAX_SAMPLE_PIXELS = 250000;
+
+// Screenshots the visible tab, crops it to `rect` (CSS pixels of the viewport) and returns a
+// histogram of its colors as [r, g, b, count], with channels rounded to 6 bits.
+async function capturePixels(windowId, rect) {
+  const url = await chrome.tabs.captureVisibleTab(windowId, { format: 'png' });
+  const bitmap = await createImageBitmap(await (await fetch(url)).blob());
+  try {
+    const scale = bitmap.width / rect.viewportWidth;
+    const sx = Math.max(0, Math.floor(rect.left * scale));
+    const sy = Math.max(0, Math.floor(rect.top * scale));
+    const sw = Math.min(bitmap.width - sx, Math.ceil(rect.width * scale));
+    const sh = Math.min(bitmap.height - sy, Math.ceil(rect.height * scale));
+    if (sw < 1 || sh < 1) return [];
+    const shrink = Math.min(1, Math.sqrt(MAX_SAMPLE_PIXELS / (sw * sh)));
+    const w = Math.max(1, Math.round(sw * shrink));
+    const h = Math.max(1, Math.round(sh * shrink));
+    const ctx = new OffscreenCanvas(w, h).getContext('2d', { willReadFrequently: true });
+    // Nearest-neighbour sampling, so downscaling doesn't invent blended colors.
+    ctx.imageSmoothingEnabled = false;
+    ctx.drawImage(bitmap, sx, sy, sw, sh, 0, 0, w, h);
+    const data = ctx.getImageData(0, 0, w, h).data;
+    const bins = new Map();
+    for (let i = 0; i < data.length; i += 4) {
+      const key = ((data[i] >> 2) << 12) | ((data[i + 1] >> 2) << 6) | (data[i + 2] >> 2);
+      bins.set(key, (bins.get(key) || 0) + 1);
+    }
+    return [...bins].map(([k, n]) => [((k >> 12) & 63) * 4 + 2, ((k >> 6) & 63) * 4 + 2, (k & 63) * 4 + 2, n]);
+  } finally {
+    bitmap.close();
+  }
 }
 
 async function fetchResource(url, as) {

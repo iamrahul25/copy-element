@@ -9,16 +9,18 @@
   const LARGE_NODES = 2000;
   const LARGE_BYTES = 5 * 1024 * 1024;
 
+  // [label, one-line description, longer tooltip]
   const OPTIONS = {
-    pseudo: ['Pseudo-elements', '::before / ::after content'],
-    states: ['Hover / focus', 'Copy :hover, :focus and :active rules'],
-    fonts: ['Web fonts', 'Include matching @font-face rules'],
+    pseudo: ['Pseudo-elements', 'Copy ::before and ::after content'],
+    states: ['Hover / focus', 'Copy :hover, :focus and :active styles'],
+    fonts: ['Web fonts', 'Include the @font-face rules it uses'],
     svg: ['SVG internals', 'Style shapes inside inline SVGs'],
-    images: ['Embed images', 'Inline images as base64 so the file works offline'],
+    images: ['Embed images', 'Inline images so the file works offline', 'Inline images as base64 so the file works offline'],
     keepClasses: ['Keep classes', 'Keep the original class names'],
-    pageBg: ['Page background', 'Use the page color behind the component'],
+    pageBg: ['Page background', 'Use the page color behind it', 'Use the page color behind the component'],
     tailwind: [
       'Tailwind CDN',
+      'Keep Tailwind classes, load it from a CDN',
       'Keep the Tailwind classes, load Tailwind from its CDN and leave out the CSS those classes already write',
     ],
   };
@@ -26,13 +28,10 @@
   const AVAILABLE = {
     tailwind: [(snap) => !!snap?.meta.tailwind, 'No Tailwind CSS found on this page'],
   };
-  const OUTPUT_STYLES = [
-    [
-      'clean',
-      'Clean',
-      'Only the styles that change how it looks, as shorthands. Sizes are kept only where the layout needs them',
-    ],
-    ['exact', 'Exact', 'Every computed style, for pixel-exact copies'],
+  const CLEAN_OUTPUT = [
+    'Clean output',
+    'Best for most elements',
+    'On: only the styles that change how it looks, as shorthands, with sizes kept only where the layout needs them. Off: every computed style, for pixel-exact copies',
   ];
   // Preview canvas only; not part of the output. [value, label, icon]
   const BACKGROUNDS = [
@@ -60,7 +59,7 @@
       return;
     }
     close();
-    UIP.picker.start((el) => {
+    UIP.picker.start(async (el) => {
       let snap;
       try {
         snap = UIP.serializer.capture(el);
@@ -69,6 +68,7 @@
         open(null, err);
         return;
       }
+      await UIP.tokens.measurePixels(el, snap.meta.tokens, snap.meta.pageBg);
       open(snap);
     });
   };
@@ -100,7 +100,7 @@
     });
 
     const shadow = host.attachShadow({ mode: 'open' });
-    await UIP.theme.ready;
+    await Promise.all([UIP.theme.ready, UIP.settings.ready]);
     const cleanup = [UIP.theme.apply(host)];
     const state = {
       snap,
@@ -149,7 +149,9 @@
         buttons.set(key, h('button', { type: 'button', class: 'segment', role: tabs && 'tab', text, title, onclick }));
       }
       select(value);
-      return h('div', { class: 'segmented', role: tabs ? 'tablist' : 'group', 'aria-label': label }, [...buttons.values()]);
+      const group = h('div', { class: 'segmented', role: tabs ? 'tablist' : 'group', 'aria-label': label }, [...buttons.values()]);
+      group.select = select;
+      return group;
     };
 
     /* stats */
@@ -215,34 +217,160 @@
       true
     );
 
+    /* extracted colors and fonts */
+    const tokens = snap?.meta.tokens || { colors: [], fonts: [] };
+    const percent = (n) => (n <= 0 ? '0%' : n < 1 ? '<1%' : `${Math.round(n)}%`);
+    const usage = (pct) => {
+      const fill = h('span');
+      fill.style.setProperty('width', `${Math.max(pct, 2)}%`);
+      return h('span', { class: 'token-usage' }, h('span', { class: 'meter' }, fill), h('span', { class: 'token-pct', text: percent(pct) }));
+    };
+    const tokenRow = (tile, name, meta, pct, props) =>
+      h(
+        'button',
+        { type: 'button', class: 'token', ...props },
+        tile,
+        h('span', { class: 'token-main' }, name, h('span', { class: 'token-meta', text: meta })),
+        usage(pct)
+      );
+    const sizeRange = (sizes) => (sizes.length > 1 ? `${sizes[0]}–${sizes[sizes.length - 1]}px` : `${sizes[0]}px`);
+    const tokenList = (items, empty, row) =>
+      h('div', { class: 'token-list' }, items.length ? items.map(row) : h('p', { class: 'token-empty', text: empty }));
+
+    // Hovering a color or font marks it in the preview; a clicked font stays marked otherwise.
+    let markedFont = null;
+    let hovered = null;
+    const sendMark = () => {
+      const target = hovered || (markedFont && { stacks: markedFont.stacks });
+      frame.contentWindow?.postMessage({ type: 'uip-highlight', ...target }, EXT_ORIGIN);
+    };
+    const hoverMark = (target) => {
+      const enter = () => {
+        hovered = target;
+        sendMark();
+      };
+      const leave = () => {
+        if (hovered !== target) return;
+        hovered = null;
+        sendMark();
+      };
+      return {
+        onmouseenter: enter,
+        onmouseleave: leave,
+        onfocus: (e) => e.target.matches(':focus-visible') && enter(),
+        onblur: leave,
+      };
+    };
+
+    const colorList = tokenList(tokens.colors, 'No colors found in this element.', (c) => {
+      const value = c.alpha < 1 ? `${c.hex}${Math.round(c.alpha * 255).toString(16).padStart(2, '0')}` : c.hex;
+      const tile = h('span', { class: 'swatch' });
+      tile.style.setProperty('--swatch', value);
+      const roles = c.roles.map((r) => r[0].toUpperCase() + r.slice(1));
+      const meta = [...roles, c.count && `${fmt(c.count)} ${c.count === 1 ? 'use' : 'uses'}`].filter(Boolean).join(' · ');
+      const row = tokenRow(tile, h('span', { class: 'token-name mono', text: value }), meta, c.pct, {
+        title: `Copy ${value}`,
+        ...hoverMark({ color: { hex: c.hex, alpha: c.alpha } }),
+        onclick: async () => {
+          const label = row.querySelector('.token-meta');
+          clearTimeout(row.flashTimer);
+          const ok = await copyText(value, shadow);
+          label.textContent = ok ? `Copied ${value}` : 'Copy failed';
+          row.classList.toggle('done', ok);
+          row.flashTimer = setTimeout(() => {
+            label.textContent = meta;
+            row.classList.remove('done');
+          }, 1400);
+        },
+      });
+      return row;
+    });
+
+    const fontRows = new Map();
+    const markFont = (font) => {
+      markedFont = font === markedFont ? null : font;
+      for (const [f, row] of fontRows) row.setAttribute('aria-pressed', String(f === markedFont));
+      if (markedFont && frame.hidden) {
+        tabs.select('preview');
+        setTab('preview');
+      }
+      sendMark();
+    };
+    const fontList = tokenList(tokens.fonts, 'No text in this element.', (f) => {
+      const tile = h('span', { class: 'swatch glyph', text: 'Aa' });
+      const name = h('span', { class: 'token-name font-name', text: f.name });
+      for (const el of [tile, name]) el.style.setProperty('font-family', f.stacks[0]);
+      const notes = [f.weights.join(' · '), sizeRange(f.sizes)];
+      if (f.declared) notes.push(`fallback for ${f.declared}`);
+      else if (f.generic) notes.push('browser default');
+      const row = tokenRow(tile, name, notes.join(' · '), f.pct, {
+        title: `Highlight text set in ${f.name} in the preview`,
+        'aria-pressed': 'false',
+        ...hoverMark({ stacks: f.stacks }),
+        onclick: () => markFont(f),
+      });
+      fontRows.set(f, row);
+      return row;
+    });
+    fontList.hidden = true;
+
+    const TOKEN_HINTS = {
+      colors:
+        tokens.source === 'pixels'
+          ? 'Share of the pixels on screen. Hover a color to see where it is used, click to copy it.'
+          : 'Estimated share of the area. Hover a color to see where it is used, click to copy it.',
+      fonts: 'Share of the text. Hover a font to see its text in the preview, click to keep it marked.',
+    };
+    const tokenHint = h('p', { text: TOKEN_HINTS.colors });
+    const tokenTabs = segmented(
+      'Extracted styles',
+      [
+        ['colors', `Colors · ${tokens.colors.length}`, 'Colors used in the element'],
+        ['fonts', `Fonts · ${tokens.fonts.length}`, 'Fonts used in the element'],
+      ],
+      'colors',
+      (which) => {
+        colorList.hidden = which !== 'colors';
+        fontList.hidden = which !== 'fonts';
+        tokenHint.textContent = TOKEN_HINTS[which];
+      }
+    );
+
     /* options */
-    const outputStyle = segmented('Output style', OUTPUT_STYLES, state.opts.minimal ? 'clean' : 'exact', (value) => {
-      state.opts.minimal = value === 'clean';
+    const checkbox = ([label, desc, tooltip], checked, onchange, disabledWhy) =>
+      h(
+        'label',
+        { class: disabledWhy ? 'opt disabled' : 'opt', title: disabledWhy || tooltip || desc },
+        h('input', {
+          type: 'checkbox',
+          checked: !disabledWhy && checked,
+          disabled: !!disabledWhy,
+          onchange: (e) => onchange(e.target.checked),
+        }),
+        h('span', { class: 'opt-text' }, h('span', { class: 'opt-label', text: label }), h('span', { class: 'opt-desc', text: desc }))
+      );
+
+    const cleanOutput = checkbox(CLEAN_OUTPUT, !!state.opts.minimal, (on) => {
+      state.opts.minimal = on;
       UIP.storage.setOptions(state.opts);
       scheduleRender();
     });
 
     const optionEl = (key) => {
-      const [label, title] = OPTIONS[key];
       const [available, why] = AVAILABLE[key] || [];
       const enabled = !available || available(snap);
-      return h(
-        'label',
-        { class: enabled ? 'opt' : 'opt disabled', title: enabled ? title : why },
-        h('input', {
-          type: 'checkbox',
-          checked: enabled && !!state.opts[key],
-          disabled: !enabled,
-          onchange: (e) => {
-            state.opts[key] = e.target.checked;
-            UIP.storage.setOptions(state.opts);
-            scheduleRender();
-          },
-        }),
-        h('span', { text: label })
+      return checkbox(
+        OPTIONS[key],
+        !!state.opts[key],
+        (on) => {
+          state.opts[key] = on;
+          UIP.storage.setOptions(state.opts);
+          scheduleRender();
+        },
+        enabled ? null : why
       );
     };
-    const advanced = h('div', { class: 'advanced', hidden: !advancedOpen }, Object.keys(OPTIONS).map(optionEl));
+    const advanced = h('div', { class: 'advanced', hidden: !advancedOpen }, cleanOutput, Object.keys(OPTIONS).map(optionEl));
     const disclosure = h(
       'button',
       {
@@ -369,6 +497,8 @@
         themeBtn.setAttribute('aria-label', themeBtn.title);
       })
     );
+    const settings = UIP.settings.menu();
+    cleanup.push(settings.destroy);
 
     const titleEl = h('strong', { text: 'UI Picker' });
     const header = h(
@@ -383,6 +513,7 @@
       ),
       btn('Library', 'outline', () => chrome.runtime.sendMessage({ type: 'uip-open-library' }), 'Open component library', 'folder'),
       themeBtn,
+      settings.el,
       btn('', 'ghost icon', close, 'Close (Esc)', 'x')
     );
 
@@ -415,35 +546,33 @@
           btn('Re-pick', 'outline sm repick', () => UIP.start(), 'Pick another element', 'refresh')
         )
       ),
+      h('section', { class: 'options' }, disclosure, advanced),
       h(
         'section',
-        { class: 'options' },
+        { class: 'tokens' },
         h(
           'div',
           { class: 'option-row' },
-          h(
-            'div',
-            { class: 'option-text' },
-            h('h2', null, icon('sliders'), h('span', { text: 'Output style' })),
-            h('p', { text: 'Clean is best for most elements.' })
-          ),
-          outputStyle
+          h('div', { class: 'option-text' }, h('h2', null, icon('palette'), h('span', { text: 'Extracted styles' })), tokenHint),
+          tokenTabs
         ),
-        disclosure,
-        advanced
+        colorList,
+        fontList
       ),
       h('footer', { class: 'foot' }, saveRow, h('div', { class: 'actions' }, copyBtn, downloadBtn, bookmarkBtn), status)
     );
 
+    cleanup.push(UIP.settings.applyZoom(panel));
     shadow.append(panel);
     try {
-      shadow.adoptedStyleSheets = await loadSheets('shared/theme.css', 'content/panel.css');
+      shadow.adoptedStyleSheets = await loadSheets('shared/theme.css', 'content/panel.css', 'shared/settings.css');
     } catch (err) {
       console.error('[UI Picker] could not load panel styles', err);
     }
     document.documentElement.appendChild(host);
     host.style.setProperty('visibility', 'visible', 'important');
     enableDrag(host, header);
+    cleanup.push(UIP.settings.watch('zoom', () => requestAnimationFrame(() => keepInView(host))));
 
     /* ---------- behaviour ---------- */
     const STATUS_ICONS = { ok: 'check', warn: 'alert', error: 'alert' };
@@ -552,7 +681,7 @@
 
   function enableDrag(host, handle) {
     handle.addEventListener('pointerdown', (e) => {
-      if (e.button !== 0 || e.target.closest('button')) return;
+      if (e.button !== 0 || e.target.closest('button, .settings-menu')) return;
       const rect = host.getBoundingClientRect();
       const dx = e.clientX - rect.left;
       const dy = e.clientY - rect.top;
@@ -572,6 +701,16 @@
       handle.addEventListener('pointermove', move);
       handle.addEventListener('pointerup', up);
     });
+  }
+
+  // After a drag the panel is placed by its top left corner, so growing it can push it off screen.
+  function keepInView(host) {
+    if (!host.isConnected || host.style.getPropertyValue('right') !== 'auto') return;
+    const rect = host.getBoundingClientRect();
+    const left = Math.min(Math.max(0, rect.left), Math.max(0, innerWidth - rect.width));
+    const top = Math.min(Math.max(0, rect.top), Math.max(0, innerHeight - rect.height));
+    host.style.setProperty('left', `${left}px`, 'important');
+    host.style.setProperty('top', `${top}px`, 'important');
   }
 
   UIP.panel = { open, close };

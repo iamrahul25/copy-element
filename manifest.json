@@ -29,7 +29,7 @@
   },
   "web_accessible_resources": [
     {
-      "resources": ["preview/preview.html", "content/panel.css", "shared/theme.css", "icons/icon-128.png"],
+      "resources": ["preview/preview.html", "content/panel.css", "shared/theme.css", "shared/settings.css", "icons/icon-128.png"],
       "matches": ["<all_urls>"]
     }
   ]

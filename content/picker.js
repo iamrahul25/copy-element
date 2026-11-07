@@ -79,6 +79,7 @@
     document.documentElement.appendChild(host);
 
     let current = null;
+    let zoom = 1;
     let lastX = -1;
     let lastY = -1;
     let frame = 0;
@@ -108,13 +109,23 @@
         height: `${r.height}px`,
       });
       label.textContent = `${UIP.describe(el)}   ${Math.round(r.width)} × ${Math.round(r.height)}`;
-      const top = r.top > 28 ? r.top - 26 : Math.min(r.bottom + 4, innerHeight - 26);
+      const tall = 26 * zoom;
+      const top = r.top > tall + 2 ? r.top - tall : Math.min(r.bottom + 4, innerHeight - tall);
+      // The label is zoomed, and so are its left and top, so they are given in its own units.
       css(label, {
         display: 'block',
-        left: `${Math.max(4, Math.min(r.left, innerWidth - 260))}px`,
-        top: `${Math.max(4, top)}px`,
+        left: `${Math.max(4, Math.min(r.left, innerWidth - 260 * zoom)) / zoom}px`,
+        top: `${Math.max(4, top) / zoom}px`,
       });
     };
+
+    // The box traces the page element, so only the label and hint follow the interface size.
+    const stopZoom = UIP.settings.watch('zoom', (z) => {
+      zoom = z;
+      css(hint, { zoom: String(z) });
+      css(label, { zoom: String(z), 'max-width': `calc(70vw / ${z})` });
+      if (current) highlight(current);
+    });
 
     const isOurs = (e) => e.composedPath().includes(host);
 
@@ -182,6 +193,7 @@
       window.removeEventListener('keydown', onKey, true);
       window.removeEventListener('scroll', onScroll, true);
       stopTheme();
+      stopZoom();
       host.remove();
     }
 

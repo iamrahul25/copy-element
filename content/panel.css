@@ -7,8 +7,9 @@
 .panel {
   box-sizing: border-box;
   width: 520px;
-  max-width: calc(100vw - 32px);
-  max-height: calc(100vh - 32px);
+  /* --zoom is the interface size (shared/settings.js); viewport units are zoomed with the panel. */
+  max-width: calc((100vw - 32px) / var(--zoom, 1));
+  max-height: calc((100vh - 32px) / var(--zoom, 1));
   display: flex;
   flex-direction: column;
   background: var(--background);
@@ -19,6 +20,7 @@
   font: 14px/1.45 var(--font-sans);
   overflow: auto;
   animation: panel-in 200ms var(--ease);
+  container-type: inline-size;
 }
 
 @keyframes panel-in {
@@ -239,7 +241,7 @@
 
 .view {
   position: relative;
-  height: clamp(160px, calc(100vh - 540px), 280px);
+  height: clamp(160px, calc(100vh / var(--zoom, 1) - 540px), 280px);
   border: 1px solid var(--border);
   border-radius: var(--radius);
   overflow: hidden;
@@ -313,7 +315,177 @@
   color: var(--syntax-fn);
 }
 
+/* ---------- extracted colors and fonts ---------- */
+
+.tokens {
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+  padding: 20px 24px;
+}
+
+.token-list {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+  max-height: 200px;
+  margin: 0 -8px;
+  padding: 2px 8px;
+  overflow: auto;
+}
+
+.token {
+  display: grid;
+  grid-template-columns: auto minmax(0, 1fr) 128px;
+  align-items: center;
+  gap: 12px;
+  flex: none;
+  padding: 6px 8px;
+  font: inherit;
+  text-align: left;
+  border: 1px solid transparent;
+  border-radius: var(--radius-md);
+  background: transparent;
+  color: var(--foreground);
+  cursor: pointer;
+  transition: background-color var(--dur) var(--ease), border-color var(--dur) var(--ease);
+}
+
+.token:hover {
+  background: var(--accent);
+}
+
+.token[aria-pressed='true'] {
+  background: var(--segment);
+  border-color: var(--brand);
+}
+
+.swatch {
+  display: grid;
+  place-items: center;
+  width: 32px;
+  height: 32px;
+  border-radius: var(--radius-sm);
+  box-shadow: inset 0 0 0 1px color-mix(in srgb, var(--foreground) 14%, transparent);
+  /* The checkerboard shows through translucent colors. */
+  background: linear-gradient(var(--swatch), var(--swatch)),
+    repeating-conic-gradient(#d4d4d8 0 25%, #ffffff 0 50%) 0 0 / 8px 8px;
+}
+
+.swatch.glyph {
+  background: var(--muted);
+  color: var(--foreground);
+  font-size: 15px;
+  line-height: 1;
+}
+
+.token-main {
+  display: flex;
+  flex-direction: column;
+  min-width: 0;
+}
+
+.token-name,
+.token-meta {
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+.token-name {
+  font-size: 14px;
+  font-weight: 600;
+  line-height: 1.35;
+}
+
+.token-name.mono {
+  font: 600 13px/1.35 var(--font-mono);
+}
+
+.font-name {
+  font-size: 15px;
+}
+
+.token-meta {
+  font-size: 12px;
+  color: var(--muted-foreground);
+}
+
+.token.done .token-meta {
+  color: var(--success);
+}
+
+.token-usage {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
+
+.meter {
+  flex: 1;
+  height: 6px;
+  border-radius: 999px;
+  background: var(--muted);
+  overflow: hidden;
+}
+
+.meter > span {
+  display: block;
+  height: 100%;
+  border-radius: inherit;
+  background: var(--brand);
+}
+
+.token-pct {
+  width: 34px;
+  text-align: right;
+  font-size: 12px;
+  font-weight: 500;
+  font-variant-numeric: tabular-nums;
+  color: var(--muted-foreground);
+}
+
+.token-empty {
+  margin: 0;
+  padding: 8px 0;
+  font-size: 13px;
+  color: var(--muted-foreground);
+}
+
 /* ---------- options ---------- */
+
+.disclosure {
+  display: inline-flex;
+  align-items: center;
+  align-self: flex-start;
+  gap: 8px;
+  margin-left: -4px;
+  padding: 4px;
+  font: inherit;
+  font-size: 14px;
+  font-weight: 500;
+  border: 0;
+  border-radius: var(--radius-sm);
+  background: transparent;
+  color: var(--muted-foreground);
+  cursor: pointer;
+  transition: color var(--dur) var(--ease);
+}
+
+.disclosure:hover {
+  color: var(--foreground);
+}
+
+.disclosure .ico {
+  width: 14px;
+  height: 14px;
+  transform: rotate(-90deg);
+  transition: transform var(--dur) var(--ease);
+}
+
+.disclosure[aria-expanded='true'] .ico {
+  transform: none;
+}
 
 .options {
   display: flex;
@@ -353,54 +525,39 @@
   color: var(--muted-foreground);
 }
 
-.disclosure {
-  display: inline-flex;
-  align-items: center;
-  align-self: flex-start;
-  gap: 8px;
-  margin-left: -4px;
-  padding: 4px;
-  font: inherit;
-  font-size: 14px;
-  font-weight: 500;
-  border: 0;
-  border-radius: var(--radius-sm);
-  background: transparent;
-  color: var(--muted-foreground);
-  cursor: pointer;
-  transition: color var(--dur) var(--ease);
-}
-
-.disclosure:hover {
-  color: var(--foreground);
-}
-
-.disclosure .ico {
-  width: 14px;
-  height: 14px;
-  transform: rotate(-90deg);
-  transition: transform var(--dur) var(--ease);
-}
-
-.disclosure[aria-expanded='true'] .ico {
-  transform: none;
-}
-
 .advanced {
   display: grid;
   grid-template-columns: repeat(2, minmax(0, 1fr));
-  gap: 4px 24px;
+  gap: 12px 24px;
   padding-bottom: 4px;
 }
 
 .opt {
   display: flex;
-  align-items: center;
+  align-items: flex-start;
   gap: 10px;
-  min-height: 32px;
   color: var(--foreground);
   cursor: pointer;
   user-select: none;
+}
+
+.opt-text {
+  display: flex;
+  flex-direction: column;
+  min-width: 0;
+}
+
+.opt-label {
+  line-height: 1.35;
+}
+
+.opt-desc {
+  font-size: 12px;
+  line-height: 1.35;
+  color: var(--muted-foreground);
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
 }
 
 .opt input {
@@ -409,7 +566,7 @@
   place-content: center;
   width: 18px;
   height: 18px;
-  margin: 0;
+  margin: 1px 0 0;
   flex: none;
   border: 1.5px solid var(--checkbox);
   border-radius: 4px;
@@ -511,7 +668,8 @@
 
 .btn:focus-visible,
 .segment:focus-visible,
-.disclosure:focus-visible {
+.disclosure:focus-visible,
+.token:focus-visible {
   outline: 2px solid var(--ring);
   outline-offset: 2px;
 }
@@ -655,9 +813,11 @@
   color: var(--destructive);
 }
 
-@media (max-width: 560px) {
+/* Narrower than its 520px means the screen is too small for it at this interface size. */
+@container (width < 520px) {
   .top,
   .viewer,
+  .tokens,
   .options,
   .foot {
     padding-left: 16px;
